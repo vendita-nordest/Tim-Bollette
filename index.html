@@ -121,7 +121,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
         <button class="btn sec" id="btnNuovo">↺ Nuovo controllo</button>
       </div>
       <div class="progress" id="prog"><div></div></div>
-      <p class="small" id="stato">La bolletta viene letta solo su questo dispositivo: nessun file viene inviato in internet e nulla viene salvato.</p>
+      <p class="small" id="stato">La bolletta viene letta solo su questo dispositivo: nessun file viene inviato in internet e nulla viene salvato. Si usano solo i dati presenti in bolletta.</p>
     </div>
     <div id="schede" style="display:none">
       <div class="avviso blu">Controlla i dati trovati: i campi <span class="chip ok">verdi</span> sono stati letti dalla bolletta, quelli <span class="chip wa">gialli</span> sono importanti ma mancano. Puoi correggere tutto.</div>
@@ -166,12 +166,12 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
     </div>
   </section>
 </main>
-<footer>Calcoli indicativi su materia energia e commercializzazione, IVA e imposte escluse. Oneri di rete, oneri di sistema e imposte sono uguali per tutti i fornitori.</footer>
+<footer>Calcoli indicativi sulla spesa per la vendita, IVA e imposte escluse. Rete, oneri generali di sistema e imposte sono uguali per tutti i fornitori.</footer>
 
 <script src="lib/pdfjs/pdf.min.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v1.0";
+const VERSIONE = "v1.1";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -227,7 +227,8 @@ const LISTINO_FABBRICA = {
   wifi: { nome:'TIM WiFi Casa (fibra fino a 2,5 Gbps)', listino:31.90, scontoDue:8, scontoUna:5, attivazione:39.90, scadenza:'2026-11-28' },
   mobile:{ nome:'TIM Mobile + Energia (100 GB 5G)', listino:12.99, prezzoDue:9.99, prezzoUna:12.99, sim:10, scadenza:'2026-11-28' },
   pacchetto:{ nome:'Energia + WiFi Casa + TV + Mobile (solo in negozio)', bonusFisso:96, bonusMobile:24, tvMese:0, scadenza:'2026-11-28' },
-  contributo:{ importo:60 }
+  contributo:{ importo:60 },
+  venditore:{ scontoMaxMese:0, scontoMesi:12 }
 };
 const LISTINO_CAMPI = [
   ['luce','💡 Luce',[
@@ -249,7 +250,8 @@ const LISTINO_CAMPI = [
   ['pacchetto','🎁 Pacchetto completo (nuovi clienti, negozio)',[
     ['nome','Nome','t'],['bonusFisso','Bonus su fattura WiFi Casa + TV (€ totali)','n2'],['bonusMobile','Bonus su fattura Mobile (€ totali)','n2'],
     ['tvMese','Costo TIM TV €/mese (se non incluso)','n2','stima'],['scadenza','Valido fino al','d']]],
-  ['contributo','🏛️ Contributo straordinario luce',[['importo','Importo annuo € (ISEE ≤ 25.000 €, residenti)','n2']]]
+  ['contributo','🏛️ Contributo straordinario luce',[['importo','Importo annuo € (ISEE ≤ 25.000 €, residenti)','n2']]],
+  ['venditore','🤝 Sconti del venditore',[['scontoMaxMese','Sconto massimo che puoi concedere €/mese (0 = non previsto)','n2'],['scontoMesi','Per quanti mesi','n0']]]
 ];
 let L;
 function caricaListino(){
@@ -337,16 +339,27 @@ async function testoDaImmagine(file){
 }
 async function leggiFile(files){
   if(!files || !files.length) return;
-  let testo='';
+  let testo=''; const pdfTesti=[]; let foto='';
   try{
     for(const f of files){
-      if(f.type==='application/pdf' || /\.pdf$/i.test(f.name)) testo += await testoDaPDF(f) + '\n';
-      else if(f.type.startsWith('image/')) testo += await testoDaImmagine(f) + '\n';
+      if(f.type==='application/pdf' || /\.pdf$/i.test(f.name)){ const x=await testoDaPDF(f); pdfTesti.push(x); testo += x + '\n'; }
+      else if(f.type.startsWith('image/')){ const x=await testoDaImmagine(f); foto += x + '\n'; testo += x + '\n'; }
     }
   }catch(err){ console.error(err); stato('❌ Errore nella lettura: '+err.message+'. Puoi inserire i dati a mano.', null); mostraSchede(true); return; }
   testoUltimo = testo;
-  const d = estrai(testo);
-  DATI = d;
+  // ogni PDF viene letto da solo (es. bolletta luce e bolletta gas separate); le foto sono pagine dello stesso documento
+  const blocchi = [...pdfTesti]; if(foto) blocchi.push(foto);
+  let d;
+  if(blocchi.length<=1) d = estrai(testo);
+  else {
+    const ris = blocchi.map(estrai); d = vuoto();
+    for(const k of ['luce','gas']){
+      const cand = ris.filter(r=>r[k].presente).sort((a,b)=>Object.keys(b[k]._t).length-Object.keys(a[k]._t).length);
+      if(cand.length) d[k]=cand[0][k];
+    }
+  }
+  DATI = d; SCONTO={mese:0,mesi:12};
+  if(d.luce.presente && typeof d.luce.residente==='boolean'){ CLIENTE.residente=d.luce.residente; CLIENTE._residenteBolletta=true; renderDomande(); }
   mostraSchede();
   const nL = d.luce.presente, nG = d.gas.presente;
   stato(`✅ Lettura completata: ${nL&&nG?'luce e gas':nL?'luce':nG?'gas':'nessuna fornitura riconosciuta, inserisci i dati a mano'}. Controlla i campi qui sotto.`, null);
@@ -360,15 +373,26 @@ $('#fileIn').onchange=e=>{ leggiFile([...e.target.files]); e.target.value=''; };
 $('#fotoIn').onchange=e=>{ leggiFile([...e.target.files]); e.target.value=''; };
 $('#btnFoto').onclick=()=>$('#fotoIn').click();
 $('#btnManuale').onclick=()=>{ mostraSchede(true); };
-$('#btnNuovo').onclick=()=>{ DATI=vuoto(); CLIENTE=clienteVuoto(); testoUltimo=''; $('#schede').style.display='none'; stato('Pronto per una nuova bolletta. Nessun dato del cliente precedente è stato conservato.', null); renderDomande(); $('#risultato').innerHTML='<div class="card"><p>Carica una bolletta e rispondi alle domande per vedere il confronto.</p></div>'; };
+$('#btnNuovo').onclick=()=>{ DATI=vuoto(); CLIENTE=clienteVuoto(); SCONTO={mese:0,mesi:12}; testoUltimo=''; $('#schede').style.display='none'; stato('Pronto per una nuova bolletta. Nessun dato del cliente precedente è stato conservato.', null); renderDomande(); $('#risultato').innerHTML='<div class="card"><p>Carica una bolletta e rispondi alle domande per vedere il confronto.</p></div>'; };
 
 /* ===================== ESTRAZIONE DATI ===================== */
 const NUM = '(\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+(?:[,.]\\d+)?)';
-const FORNITORI = ['Servizio Elettrico Nazionale','Enel Energia','Hera Comm','A2A Energia','Edison Energia','Edison','Eni Plenitude','Plenitude','Iren Mercato','Iren','Acea Energia','Sorgenia','Engie','E.ON','Illumia','Dolomiti Energia','AGSM AIM','Estra','Octopus Energy','Iberdrola','Pulsee','Axpo','Wekiwi','NeN','Alperia','Duferco','Ascotrade','Bluenergy','Optima','Fastweb Energia','Sinergas','Iris','Enercom','Vivi Energia','Gruppo Sinergy','Trenta','Argos','Green Network','Energia Pulita','Tate','Heracomm','Estra Energie','Etra','Unoenergy','E.ON Energia','Edison Next','PostePay','Poste Energia','Repower','Bluenergy Group','Nova Aeg','Sorgenia S.p.A.','Enegan','Volt','Audax','Prometeo','Italgas'];
+const FORNITORI = [
+  ['accendilucegas','Accendi luce & gas'],['accendi luce','Accendi luce & gas'],['alg s.p.a','Accendi luce & gas'],
+  ['servizio elettrico nazionale','Servizio Elettrico Nazionale'],['enel energia','Enel Energia'],['hera comm','Hera Comm'],['heracomm','Hera Comm'],
+  ['a2a energia','A2A Energia'],['edison energia','Edison Energia'],['plenitude','Eni Plenitude'],['iren mercato','Iren'],['iren ','Iren'],
+  ['acea energia','Acea Energia'],['sorgenia','Sorgenia'],['engie','Engie'],['e.on','E.ON'],['illumia','Illumia'],['dolomiti energia','Dolomiti Energia'],
+  ['agsm aim','AGSM AIM'],['estra','Estra'],['octopus','Octopus Energy'],['iberdrola','Iberdrola'],['pulsee','Pulsee'],['axpo','Axpo'],['wekiwi','Wekiwi'],
+  ['alperia','Alperia'],['duferco','Duferco'],['ascotrade','Ascotrade'],['bluenergy','Bluenergy'],['optima','Optima'],['fastweb','Fastweb Energia'],
+  ['sinergas','Sinergas'],['enercom','Enercom'],['vivi energia','Vivi Energia'],['green network','Green Network'],['argos','Argos'],['nova aeg','Nova AEG'],
+  ['enegan','Enegan'],['audax','Audax'],['repower','Repower'],['postepay','PostePay / TIM Energia'],['poste energia','Poste Energia'],['tate','Tate'],
+  ['edison','Edison'],['nen ','NeN'],['energia pulita','Energia Pulita'],['unoenergy','Unoenergy'],['trenta','Trenta'],['coop','Accendi luce & gas']
+];
 function vuoto(){
   return { luce:{presente:false,_t:{},metodo:'auto',perdite:false}, gas:{presente:false,_t:{},metodo:'auto'} };
 }
 let DATI = vuoto(); let testoUltimo='';
+const IMP = '(\\d{1,3}(?:\\.\\d{3})*,\\d{2})(?!\\d)';
 function numeroDopo(t, labelRe, unitRe, gap=140, filtro){
   const re = new RegExp(labelRe.source, 'gi'); let m;
   while((m=re.exec(t))){
@@ -383,119 +407,166 @@ function importoDopo(t, labelRe, gap=120){
   const re = new RegExp(labelRe.source,'gi'); let m;
   while((m=re.exec(t))){
     const coda = t.slice(m.index+m[0].length, m.index+m[0].length+gap);
-    const n = coda.match(/(?:€|euro|eur)?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})(?!\d)/i);
+    const n = coda.match(new RegExp('^[^\\d\\n]{0,40}'+IMP));
     if(n) return parseIT(n[1]);
   }
   return NaN;
 }
+function primo(t, re, fn=parseIT){ const m=t.match(re); return m? fn(m[1]) : NaN; }
 function prezzoUnitario(t, unita, min, max){
-  // candidati "0,123456 €/kWh" o "€/kWh 0,1234"
   const cand=[];
   const u = unita==='kWh' ? 'kWh' : '(?:Smc|smc|SMC|mc)';
-  const r1 = new RegExp('(\\d+,\\d{3,6}|0\\.\\d{3,6})\\s*(?:€|euro|eur)?\\s*\\/\\s*'+u, 'g');
+  const r1 = new RegExp('(\\d+,\\d{3,6}|0\\.\\d{3,6})\\s*(?:€|euro|eur)?\\s*\\/\\s*'+u+'(?!\\s*\\/)', 'g');
   const r2 = new RegExp('(?:€|euro|eur)\\s*\\/\\s*'+u+'[^\\d\\n]{0,25}(\\d+,\\d{3,6}|0\\.\\d{3,6})', 'gi');
-  for(const re of [r1,r2]){ let m; while((m=re.exec(t))){ const v=parseIT(m[1]); const ctx=t.slice(Math.max(0,m.index-90), m.index).toLowerCase(); cand.push({v,ctx,i:m.index}); } }
+  for(const re of [r1,r2]){ let m; while((m=re.exec(t))){ const v=parseIT(m[1]); const ctx=t.slice(Math.max(0,m.index-90), m.index).toLowerCase(); cand.push({v,ctx}); } }
   const buone=/prezzo|energia|componente|materia|monorar|f0|fisso|bloccat|offerta|gas naturale|cmem|pe\b|pfor/;
-  const cattive=/trasport|oneri|sistema|accis|impost|rete|asos|arim|distribu|misura|perdit|dispacc|uc\d|ccr|qvd|spread|pun\s*\+|psv\s*\+|\bpun\b|\bpsv\b|iva/;
+  const cattive=/trasport|oneri|sistema|accis|impost|rete|asos|arim|distribu|misura|perdit|dispacc|capacity|uc\d|ccr|qvd|spread|pun\s*\+|psv\s*\+|\bpun\b|\bpsv\b|iva|mpe|mpg|cvar/;
   let best=null, bs=-99;
-  for(const c of cand){ if(!(c.v>=min && c.v<=max)) continue; let s=0; if(buone.test(c.ctx)) s+=2; if(cattive.test(c.ctx.slice(-45))) s-=3; if(s>bs){bs=s;best=c;} }
+  for(const c of cand){
+    if(!(c.v>=min && c.v<=max)) continue;
+    const coda=c.ctx.slice(-45); let s=0;
+    if(buone.test(c.ctx)) s+=2; if(cattive.test(coda)) s-=3;
+    if(/\bx\s*$/.test(c.ctx)) s-=5; // "359 kWh x 0,218 €/kWh" = prezzo medio con rete e oneri
+    if(s>bs){bs=s;best=c;}
+  }
   return best && bs>=0 ? best.v : NaN;
 }
 function quotaFissa(t, chiavi){
-  const re = /(\d+,\d{2,6}|\d+\.\d{2,6})\s*(?:€|euro|eur)?\s*\/\s*(?:pod\s*\/\s*|pdr\s*\/\s*|pdp\s*\/\s*|punto\s*\/\s*|cliente\s*\/\s*)?(mese|anno)/gi; let m; let best=NaN;
+  const re = /(\d+,\d{2,6}|\d+\.\d{2,6})\s*(?:€|euro|eur)?\s*\/\s*(?:pod\s*\/\s*|pdr\s*\/\s*|pdp\s*\/\s*|punto\s*\/\s*|cliente\s*\/\s*)?(mese|anno)/gi; let m;
   while((m=re.exec(t))){
     const ctx=t.slice(Math.max(0,m.index-110), m.index).toLowerCase();
-    if(!chiavi.test(ctx)) continue;
+    if(!chiavi.test(ctx) || /rete e gli oneri|oneri generali|trasporto/.test(ctx.slice(-70))) continue;
     let v=parseIT(m[1]); if(/anno/i.test(m[2])) v=v/12;
-    if(v>=0.5 && v<=40){ best=v; break; }
+    if(v>=0.5 && v<=40) return v;
   }
-  return best;
+  return NaN;
+}
+// pulizia: toglie i "caratteri strani" (codici a barre, caratteri nascosti) e divide le sezioni luce / gas
+function pulisci(raw){
+  return raw.replace(/ /g,' ').split('\n').map(l => l.split(/\s+/).filter(tok => !/[`$!@^*{}\[\]~|<>?=;"#\\]/.test(tok)).join(' ')
+    .replace(/\s+([àèéìòù])(?=[\s.,;:]|$)/g,'$1').replace(/€\s*\/\s*/g,'€/')).join('\n');
+}
+function sezioni(t){
+  const out={luce:[],gas:[]}; let ctx=null;
+  const H=/scontrino|box dell|spesa per la vendita di|spesa per la materia|riepilogo per|informazioni storiche|caratteristiche tecniche|letture e consumi|fornitura (?:elettrica|gas|di energia|di gas)|elementi di dettaglio|dettaglio (?:luce|gas)|sezione (?:luce|gas)/i;
+  for(const l of t.split('\n')){
+    if(H.test(l)){
+      const lu=/elettric|\bluce\b/i.test(l), ga=/\bgas\b/i.test(l);
+      ctx = lu&&!ga ? 'luce' : ga&&!lu ? 'gas' : (lu&&ga ? null : ctx);
+    }
+    if(ctx) out[ctx].push(l);
+  }
+  return {luce:out.luce.join('\n'), gas:out.gas.join('\n')};
 }
 function estrai(raw){
-  const t = raw.replace(/ /g,' ').replace(/[ \t]+/g,' ').replace(/€\s*\/\s*/g,'€/');
-  const tl = t.toLowerCase();
+  const t = pulisci(raw);
+  const tl = raw.toLowerCase();
+  const sez = sezioni(t);
+  const senzaAnnui = t.split('\n').filter(l=>!/annuo|dettaglio per fasce|ultimi\s+1[28]\s+mesi|spesa annua/i.test(l)).join('\n');
   const d = vuoto();
-  // ---- comuni
-  let forn=''; for(const f of FORNITORI){ if(tl.includes(f.toLowerCase())){ forn=f; break; } }
+  let forn=''; for(const [k,n] of FORNITORI){ if(tl.includes(k)){ forn=n; break; } }
   let mercato='';
   if(/tutele graduali/i.test(t)) mercato='Servizio a tutele graduali'; else if(/maggior tutela|tutela della vulnerabilit|servizio di tutela/i.test(t)) mercato='Tutela / vulnerabili'; else if(/mercato libero/i.test(t)) mercato='Mercato libero';
   let dal='',al='';
-  const per = t.match(/(?:periodo[^\n]{0,60}?)?dal\s+(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})\s+al\s+(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})/i)
+  const per = t.match(/dal\s+(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})\s+al\s+(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})/i)
            || t.match(/periodo[^\n\d]{0,60}(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})\s*[-–]\s*(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})/i);
   if(per){ dal=per[1]; al=per[2]; }
-  const totale = importoDopo(t, /totale\s+(?:da\s+pagare|bolletta|fattura|importo|dovuto)/);
+  const totaleGen = importoDopo(t, /totale\s+(?:da\s+pagare|bolletta|fattura|importo|dovuto)/);
 
-  // ---- LUCE
-  const lu=d.luce, T=lu._t;
-  const pod = t.match(/\bIT\s?\d{3}\s?E\s?[0-9A-Z]{7,9}\b/i);
-  const kwhAny = /\d\s*kwh/i.test(t);
-  lu.presente = !!pod || (kwhAny && /energia elettrica|luce|potenza impegnata/i.test(t));
-  if(lu.presente){
-    const set=(k,v)=>{ if(v!==undefined && v!=='' && !(typeof v==='number'&&!isFinite(v))){ lu[k]=v; T[k]=1; } };
-    set('fornitore', forn); set('mercato', mercato); if(pod) set('pod', pod[0].replace(/\s/g,'').toUpperCase());
+  for(const kind of ['luce','gas']){
+    const isL = kind==='luce'; const x=d[kind], T=x._t;
+    const S = sez[kind].length>80 ? sez[kind] : t;      // testo della sezione (o tutto se la bolletta non ha sezioni)
+    const U = isL ? 'kWh' : '(?:Smc|smc|SMC)';
+    const VEND = isL ? '(?:vendita\\s+(?:di\\s+)?energia\\s+elettrica|materia\\s+energia)' : '(?:vendita\\s+(?:di\\s+)?gas(?:\\s+naturale)?|materia\\s+(?:prima\\s+)?gas(?:\\s+naturale)?)';
+    const set=(k,v)=>{ if(v!==undefined && v!==null && v!=='' && !(typeof v==='number'&&!isFinite(v))){ x[k]=v; T[k]=1; } };
+    const id = isL ? t.match(/\bIT\s?\d{3}\s?E\s?[0-9A-Z]{7,9}\b/i) : t.match(/(?:\bPDR\b|punto\s+di\s+riconsegna)[^\d\n]{0,40}(\d[\d ]{12,17}\d)/i);
+    const unitaPresente = isL ? /\d\s*kwh/i.test(t) && /energia elettrica|luce|potenza impegnata/i.test(t) : /\d\s*(smc|standard\s+metri)/i.test(t) && /gas/i.test(t);
+    x.presente = !!id || unitaPresente;
+    if(!x.presente) continue;
+    set('fornitore', forn); set('mercato', mercato);
+    if(id){ if(isL) set('pod', id[0].replace(/\s/g,'').toUpperCase()); else { const p=id[1].replace(/\s/g,''); if(p.length===14) set('pdr',p); } }
     set('dal',dal); set('al',al);
-    set('potenza', numeroDopo(t,/potenza\s+(?:contrattualmente\s+)?impegnata/,'kW\\b',60,v=>v>0.5&&v<100));
-    set('annuo', numeroDopo(t,/consumo\s+annuo|consumi\s+(?:degli\s+)?ultimi\s+12\s+mesi|consumo\s+(?:degli\s+)?ultimi\s+12/,'kWh',160,v=>v>=50&&v<100000));
-    const f1=numeroDopo(t,/\bF1\b/,'kWh',30,v=>v>=0&&v<50000), f2=numeroDopo(t,/\bF2\b/,'kWh',30,v=>v>=0&&v<50000), f3=numeroDopo(t,/\bF3\b/,'kWh',30,v=>v>=0&&v<50000);
-    set('f1',f1); set('f2',f2); set('f3',f3);
-    let q = numeroDopo(t,/(?:consumo|consumi|energia)\s+(?:fatturat[oaie]|totale|del\s+periodo|nel\s+periodo|effettiv[oi]|rilevat[oi]|attiva\s+fatturata|complessiv[oi])/,'kWh',90,v=>v>0&&v<100000);
-    if(!isFinite(q) && isFinite(f1)&&isFinite(f2)&&isFinite(f3)) q=f1+f2+f3;
+    // dati dell'offerta del cliente
+    let nome = S.match(/nome\s+(?:dell['’]\s*)?offerta\s+commerciale[^:\n]*:[ \t]*([^\n]{3,90})/i);
+    if(nome){ set('offerta', nome[1].trim()); }
+    else { const m=t.match(new RegExp('nome\\s+(?:dell[\'’]\\s*)?offerta\\s+commerciale\\s+'+(isL?'energia elettrica':'gas naturale')+'\\s*:[ \\t]*\\n(?:[^\\n]*:\\s*\\n)?([^\\n]{3,90})','i')); if(m) set('offerta', m[1].trim()); }
+    const tip = S.match(/tipologia\s+di\s+offerta\s*:?\s*(fisso|fissa|variabile|indicizzat\w*)/i);
+    if(tip) set('tipoPrezzo', /fiss/i.test(tip[1]) ? 'fisso' : 'indicizzato');
+    else if(isL && /\bPUN\b/i.test(S) && /(spread|\+|indicizzat|variabile)/i.test(S)) set('tipoPrezzo','indicizzato');
+    else if(!isL && /\b(PSV|TTF)\b/i.test(S)) set('tipoPrezzo','indicizzato');
+    else if(/prezzo\s+(?:fisso|bloccato)|bloccat[oa]\s+per/i.test(S)) set('tipoPrezzo','fisso');
+    const sc = S.match(/scadenza\s+delle\s+condizioni\s+economiche[^\d\n]{0,70}(\d{1,2}\/\d{1,2}\/\d{4})/i) || t.match(/scadenza\s+delle\s+condizioni\s+economiche[^\d]{0,90}(\d{1,2}\/\d{1,2}\/\d{4})/i);
+    if(sc) set('scadenzaPrezzo', sc[1]);
+    // consumi
+    set('annuo', numeroDopo(isL?t:t, /consumo\s+annuo|consumi\s+(?:degli\s+)?ultimi\s+12\s+mesi|consumo\s+(?:degli\s+)?ultimi\s+12/, isL?'kWh':'(?:Smc|smc|SMC|mc)\\b', 200, v=>isL?(v>=50&&v<100000):(v>=10&&v<50000)));
+    let q = primo(t, new RegExp(NUM+'\\s*'+U+'\\s*x\\s*\\d','i'));                    // "359,24 kWh x 0,21 €/kWh"
+    if(!ok(q)) q = numeroDopo(senzaAnnui,/(?:consumo|consumi|energia|gas)\s+(?:totale\s+)?(?:fatturat[oaie]|del\s+periodo|nel\s+periodo|effettiv[oi]|rilevat[oi]|attiva\s+fatturata|complessiv[oi])/, U, 90, v=>v>0&&v<100000);
+    if(isL){
+      const fa = t.match(/di\s+cui\s+([\d\.]+)\s*\(F1\)\s*\/\s*([\d\.]+)\s*\(F2\)\s*\/\s*([\d\.]+)\s*\(F3\)/i);
+      let f1,f2,f3;
+      if(fa){ f1=parseIT(fa[1]); f2=parseIT(fa[2]); f3=parseIT(fa[3]); }
+      else { f1=numeroDopo(senzaAnnui,/\bF1\b/,'kWh',30,v=>v>=0&&v<50000); f2=numeroDopo(senzaAnnui,/\bF2\b/,'kWh',30,v=>v>=0&&v<50000); f3=numeroDopo(senzaAnnui,/\bF3\b/,'kWh',30,v=>v>=0&&v<50000); }
+      set('f1',f1); set('f2',f2); set('f3',f3);
+      if(!ok(q) && isFinite(f1)&&isFinite(f2)&&isFinite(f3)) q=f1+f2+f3;
+      set('potenza', numeroDopo(t,/potenza\s+(?:contrattualmente\s+)?impegnata/,'kW\\b',60,v=>v>0.5&&v<100));
+      const fasce = S.match(/tipologia\s+di\s+prezzo\s*:?\s*(monorari\w|biorari\w|multiorari\w|a\s+fasce|per\s+fasce)/i); if(fasce) set('fasce', fasce[1].toLowerCase());
+      const disp = primo(t,/dispacciamento[^\n]{0,45}?(0,\d{4,6})\s*€?\s*\/\s*kWh/i); if(ok(disp)&&disp<0.05) set('disp',disp);
+      const cap = primo(t,/capacity\s+market[^\n]{0,45}?(0,\d{4,6})\s*€?\s*\/\s*kWh/i); if(ok(cap)&&cap<0.05) set('capacity',cap);
+      if(/utenza\s+domestica\s*[-–]?\s*residente|abitazione\s+di\s+residenza|\bresidente\b/i.test(t) && !/non\s+residente/i.test(t)) x.residente=true;
+      else if(/non\s+residente/i.test(t)) x.residente=false;
+    }
     set('qPeriodo', q);
-    set('prezzo', prezzoUnitario(t,'kWh',0.04,0.8));
-    const spr = t.match(/PUN[^\d\n]{0,40}\+\s*(?:spread\s*)?(?:di\s*)?(0[,.]\d{3,6})/i) || t.match(/spread[^\d\n]{0,40}(0[,.]\d{3,6})\s*(?:€)?\/?\s*kwh/i);
-    if(spr){ const v=parseIT(spr[1]); if(v<0.2) set('spread',v); }
-    set('quota', quotaFissa(t,/commercializzazione|quota\s+fissa|vendita|pcv|corrispettivo\s+fisso|costo\s+fisso/));
-    set('spesa', importoDopo(t,/spesa\s+per\s+(?:la\s+)?materia\s+energia(?!\s*gas)/));
-    let tipo='';
-    if(/\bPUN\b/i.test(t) && /(spread|\+|indicizzat|variabile)/i.test(t)) tipo='indicizzato';
-    else if(/prezzo\s+(?:fisso|bloccato)|bloccat[oa]\s+per/i.test(t)) tipo='fisso';
-    if(tipo) set('tipoPrezzo',tipo);
-    if(!(T.pod||T.qPeriodo||T.annuo||T.spesa)) lu.presente=false;
-    if(lu.presente && !d.gas.presente) set('totale', totale);
+    // prezzo di vendita (senza rete e oneri) e quota fissa di vendita
+    const pv = primo(t, new RegExp(VEND+'[^\\d\\n]{0,15}(\\d+,\\d{3,6})\\s*€?\\s*\\/\\s*'+U,'i'));
+    if(ok(pv)){ set('prezzo', pv); x.prezzoCompleto=true; }
+    else { const pu = prezzoUnitario(S, isL?'kWh':'Smc', isL?0.04:0.15, isL?0.8:2.5); set('prezzo', pu); }
+    let qf = primo(t, new RegExp(VEND+'[^\\d\\n]{0,15}(\\d+,\\d{2,6})\\s*€?\\s*\\/\\s*mese','i'));
+    if(!ok(qf)) qf = quotaFissa(S, isL ? /commercializzazione|quota\s+fissa|vendita|pcv|corrispettivo\s+fisso|costo\s+fisso/ : /commercializzazione|quota\s+fissa|vendita|qvd|pcv|corrispettivo\s+fisso|costo\s+fisso/);
+    if(ok(qf) && qf<=40) set('quota', qf);
+    if(!isL){ const spr = S.match(/(?:PSV|TTF)[^\d\n]{0,40}\+\s*(?:spread\s*)?(?:di\s*)?(0[,.]\d{2,6})/i) || S.match(/spread[^\d\n]{0,40}(0[,.]\d{2,6})\s*(?:€)?\/?\s*smc/i); if(spr){ const v=parseIT(spr[1]); if(v<0.6) set('spread',v); } }
+    else { const spr = S.match(/PUN[^\d\n]{0,40}\+\s*(?:spread\s*)?(?:di\s*)?(0[,.]\d{3,6})/i) || S.match(/spread[^\d\n]{0,40}(0[,.]\d{3,6})\s*(?:€)?\/?\s*kwh/i); if(spr){ const v=parseIT(spr[1]); if(v<0.2) set('spread',v); } }
+    // spesa per la vendita nel periodo
+    let spesa = importoDopo(S, /totale\s+(?:di\s+)?spesa\s+(?:dovut[oa]\s+)?per\s+l['’]\s*offerta[^\d\n]{0,50}/, 80);
+    const qc = S.match(new RegExp('quota\\s+per\\s+consumi\\s+'+IMP,'i')); if(qc) set('spesaConsumi', parseIT(qc[1]));
+    if(!ok(spesa)) spesa = importoDopo(S, new RegExp('(?:totale\\s+)?spesa\\s+per\\s+(?:la\\s+)?'+VEND), 90);
+    if(!ok(spesa)){ // somma delle righe "di cui spesa per la vendita ... + 61,15 €" dello scontrino
+      const re = new RegExp(VEND+'[^\\n]*?\\+\\s*'+IMP+'\\s*€?','gi'); let m, s=0, n=0;
+      while((m=re.exec(t))){ s+=parseIT(m[1]); n++; }
+      if(n) spesa=s;
+    }
+    set('spesa', spesa);
+    const tot = importoDopo(t, new RegExp('totale\\s+importo\\s+'+(isL?'(?:luce|energia\\s+elettrica)':'gas'),'i'), 30);
+    set('totale', ok(tot) ? tot : undefined);
+    const sa = S.match(/spesa\s+annua\s+sostenuta[^:\n]*(?:\n[^:\n]*)?:\s*(\d{1,3}(?:\.\d{3})*,\d{2})/i); if(sa) set('spesaAnnua', parseIT(sa[1]));
+    if(!(T.pod||T.pdr||T.qPeriodo||T.annuo||T.spesa)) { x.presente=false; continue; }
   }
-
-  // ---- GAS
-  const ga=d.gas, G=ga._t;
-  const pdrM = t.match(/(?:\bPDR\b|punto\s+di\s+riconsegna)[^\d\n]{0,40}(\d[\d ]{12,17}\d)/i);
-  const smcAny = /\d\s*(smc|standard\s+metri)/i.test(t);
-  ga.presente = !!pdrM || (smcAny && /gas/i.test(t));
-  if(ga.presente){
-    const set=(k,v)=>{ if(v!==undefined && v!=='' && !(typeof v==='number'&&!isFinite(v))){ ga[k]=v; G[k]=1; } };
-    set('fornitore', forn); set('mercato', mercato); if(pdrM){ const p=pdrM[1].replace(/\s/g,''); if(p.length===14) set('pdr',p); }
-    set('dal',dal); set('al',al);
-    set('annuo', numeroDopo(t,/consumo\s+annuo|consumi\s+(?:degli\s+)?ultimi\s+12\s+mesi|consumo\s+(?:degli\s+)?ultimi\s+12/,'(?:Smc|smc|SMC|mc)\\b',160,v=>v>=20&&v<50000));
-    set('qPeriodo', numeroDopo(t,/(?:consumo|consumi|gas)\s+(?:fatturat[oaie]|totale|del\s+periodo|nel\s+periodo|effettiv[oi]|rilevat[oi]|complessiv[oi])/,'(?:Smc|smc|SMC)\\b',90,v=>v>0&&v<50000));
-    set('prezzo', prezzoUnitario(t,'Smc',0.15,2.5));
-    const spr = t.match(/(?:PSV|TTF)[^\d\n]{0,40}\+\s*(?:spread\s*)?(?:di\s*)?(0[,.]\d{2,6})/i) || t.match(/spread[^\d\n]{0,40}(0[,.]\d{2,6})\s*(?:€)?\/?\s*smc/i);
-    if(spr){ const v=parseIT(spr[1]); if(v<0.6) set('spread',v); }
-    set('quota', quotaFissa(t,/commercializzazione|quota\s+fissa|vendita|qvd|pcv|corrispettivo\s+fisso|costo\s+fisso/));
-    set('spesa', importoDopo(t,/spesa\s+per\s+(?:la\s+)?materia\s+(?:prima\s+)?gas(?:\s+naturale)?/));
-    let tipo='';
-    if(/\b(PSV|TTF)\b/i.test(t)) tipo='indicizzato'; else if(/prezzo\s+(?:fisso|bloccato)|bloccat[oa]\s+per/i.test(t)) tipo='fisso';
-    if(tipo) set('tipoPrezzo',tipo);
-    if(!(G.pdr||G.qPeriodo||G.annuo||G.spesa)) ga.presente=false;
-    if(ga.presente && !lu.presente) set('totale', totale);
-  }
-  if(lu.presente && ga.presente && isFinite(totale)){ lu.totale=totale; lu._t.totale=1; }
+  // totale unico se manca il dettaglio per fornitura
+  for(const k of ['luce','gas']){ const o=k==='luce'?'gas':'luce'; if(d[k].presente && !d[k]._t.totale && !d[o].presente && ok(totaleGen)){ d[k].totale=totaleGen; d[k]._t.totale=1; } }
   return d;
 }
 
 /* ===================== SCHEDE DATI ===================== */
 const CAMPI = {
   luce: [
-    ['fornitore','Fornitore attuale','t',0],['tipoPrezzo','Tipo di prezzo','s',1,['','fisso','indicizzato']],['mercato','Mercato','t',0],
+    ['fornitore','Fornitore attuale','t',0],['offerta','Offerta attuale','t',0],['tipoPrezzo','Tipo di prezzo','s',1,['','fisso','indicizzato']],
+    ['scadenzaPrezzo','Scadenza condizioni economiche','t',0],['mercato','Mercato','t',0],['fasce','Monoraria / fasce','t',0],
     ['pod','POD','t',0],['potenza','Potenza impegnata (kW)','n',0],['dal','Periodo dal','t',0],['al','Periodo al','t',0],
     ['qPeriodo','Consumo del periodo (kWh)','n',1],['f1','di cui F1 (kWh)','n',0],['f2','di cui F2 (kWh)','n',0],['f3','di cui F3 (kWh)','n',0],
-    ['annuo','Consumo annuo (kWh)','n',1],['prezzo','Prezzo energia (€/kWh)','n',0],['spread','Spread sul PUN (€/kWh)','n',0],
-    ['quota','Quota fissa vendita (€/mese)','n',1],['spesa','Spesa per la materia energia nel periodo (€)','n',1],['totale','Totale bolletta (€)','n',0]
+    ['annuo','Consumo annuo (kWh)','n',0],['prezzo','Prezzo di vendita (€/kWh)','n',0],['spread','Spread sul PUN (€/kWh)','n',0],
+    ['quota','Quota fissa di vendita (€/mese)','n',1],['spesa','Spesa per la vendita nel periodo (€)','n',1],['spesaConsumi','di cui quota consumi (€)','n',0],
+    ['disp','Dispacciamento letto (€/kWh)','n',0],['capacity','Capacity market letto (€/kWh)','n',0],
+    ['totale','Totale luce in bolletta (€)','n',0],['spesaAnnua','Spesa annua sostenuta (€)','n',0]
   ],
   gas: [
-    ['fornitore','Fornitore attuale','t',0],['tipoPrezzo','Tipo di prezzo','s',1,['','fisso','indicizzato']],['mercato','Mercato','t',0],
+    ['fornitore','Fornitore attuale','t',0],['offerta','Offerta attuale','t',0],['tipoPrezzo','Tipo di prezzo','s',1,['','fisso','indicizzato']],
+    ['scadenzaPrezzo','Scadenza condizioni economiche','t',0],['mercato','Mercato','t',0],
     ['pdr','PDR','t',0],['dal','Periodo dal','t',0],['al','Periodo al','t',0],
-    ['qPeriodo','Consumo del periodo (Smc)','n',1],['annuo','Consumo annuo (Smc)','n',1],['prezzo','Prezzo gas (€/Smc)','n',0],['spread','Spread sul PSV (€/Smc)','n',0],
-    ['quota','Quota fissa vendita (€/mese)','n',1],['spesa','Spesa per la materia gas naturale nel periodo (€)','n',1],['totale','Totale bolletta (€)','n',0]
+    ['qPeriodo','Consumo del periodo (Smc)','n',1],['annuo','Consumo annuo (Smc)','n',0],['prezzo','Prezzo di vendita (€/Smc)','n',0],['spread','Spread sul PSV (€/Smc)','n',0],
+    ['quota','Quota fissa di vendita (€/mese)','n',1],['spesa','Spesa per la vendita nel periodo (€)','n',1],['spesaConsumi','di cui quota consumi (€)','n',0],
+    ['totale','Totale gas in bolletta (€)','n',0],['spesaAnnua','Spesa annua sostenuta (€)','n',0]
   ]
 };
+const DEC4 = ['prezzo','spread','disp','capacity'];
 function renderScheda(kind){
   const d=DATI[kind]; const el = kind==='luce'?$('#cardLuce'):$('#cardGas');
   let h=`<h2>${kind==='luce'?'💡 Luce':'🔥 Gas'} <label style="margin-left:auto;font-size:13px;font-weight:400"><input type="checkbox" data-pres="${kind}" ${d.presente?'checked':''}> fornitura da confrontare</label></h2>`;
@@ -507,13 +578,13 @@ function renderScheda(kind){
     if(tipo==='s'){
       h+=`<label class="c ${c}">${lab}<select data-k="${kind}" data-f="${k}">${opz.map(o=>`<option value="${o}" ${v===o?'selected':''}>${o||'non so'}</option>`).join('')}</select></label>`;
     } else {
-      const val = vuotoV ? '' : (tipo==='n' ? fmt(v, (k==='prezzo'||k==='spread')?4:(k==='quota'||k==='spesa'||k==='totale'?2:(Number.isInteger(v)?0:2))) : v);
+      const val = vuotoV ? '' : (tipo==='n' ? fmt(v, DEC4.includes(k)?(v<0.1?6:4):(['quota','spesa','totale','spesaConsumi','spesaAnnua'].includes(k)?2:(Number.isInteger(v)?0:2))) : v);
       h+=`<label class="c ${c}">${lab}<input data-k="${kind}" data-f="${k}" data-t="${tipo}" ${tipo==='n'?'inputmode="decimal"':''} value="${esc(val)}"></label>`;
     }
   }
   h+=`<label class="c">Metodo di calcolo<select data-k="${kind}" data-f="metodo">
-      ${[['auto','Automatico'],['spesa','Dalla spesa materia (più preciso)'],['prezzo','Dal prezzo unitario'],['spread',kind==='luce'?'PUN + spread':'PSV + spread']].map(([v,l])=>`<option value="${v}" ${d.metodo===v?'selected':''}>${l}</option>`).join('')}</select></label>`;
-  if(kind==='luce') h+=`<label class="c" style="justify-content:flex-end"><span><input type="checkbox" data-k="luce" data-f="perdite" ${d.perdite?'checked':''}> prezzo letto al netto delle perdite di rete</span></label>`;
+      ${[['auto','Automatico'],['spesa','Dalla spesa per la vendita (più preciso)'],['prezzo','Dal prezzo di vendita'],['spread',kind==='luce'?'PUN + spread':'PSV + spread']].map(([v,l])=>`<option value="${v}" ${d.metodo===v?'selected':''}>${l}</option>`).join('')}</select></label>`;
+  if(kind==='luce' && !d.prezzoCompleto) h+=`<label class="c" style="justify-content:flex-end"><span><input type="checkbox" data-k="luce" data-f="perdite" ${d.perdite?'checked':''}> prezzo letto al netto delle perdite di rete</span></label>`;
   h+='</div><div class="small" id="info-'+kind+'" style="margin-top:8px"></div>';
   el.innerHTML=h;
   infoScheda(kind);
@@ -541,46 +612,63 @@ document.addEventListener('change', e=>{
 });
 
 /* ===================== CALCOLO FORNITURA ===================== */
+// quota di consumo gas per mese (riscaldamento + acqua calda + cottura), per stimare l'annuo da una sola bolletta
+const PROFILO_GAS = [0.18,0.15,0.12,0.07,0.04,0.025,0.02,0.02,0.025,0.06,0.12,0.17];
+function stimaAnnuoGas(q, dal, al){
+  const A=parseData(dal), B=parseData(al); if(!A||!B||B<A) return NaN;
+  let quota=0; const g=new Date(A);
+  while(g<=B){ const m=g.getMonth(); const gm=new Date(g.getFullYear(),m+1,0).getDate(); quota+=PROFILO_GAS[m]/gm; g.setDate(g.getDate()+1); }
+  return quota>0 ? q/quota : NaN;
+}
 function calcolaFornitura(kind){
   const d=DATI[kind]; const isL = kind==='luce'; const U = isL?'kWh':'Smc';
   const r={ok:false,note:[],manca:''};
   if(!d.presente) return r;
   const giorni = giorniTra(d.dal,d.al);
-  let annuo = d.annuo;
+  let annuo = d.annuo; r.annuoStimato=false;
   if(!ok(annuo)){
-    if(ok(d.qPeriodo) && ok(giorni)){ annuo = d.qPeriodo*365/giorni; r.note.push(`Consumo annuo stimato dal periodo (${fmt(annuo,0)} ${U})`+(isL?'':': per il gas è poco preciso per la stagionalità, chiedi il consumo annuo')); }
-    else { r.manca = `inserisci il consumo annuo (${U}) o il consumo del periodo con le date`; return r; }
+    if(ok(d.qPeriodo) && ok(giorni)){
+      annuo = isL ? d.qPeriodo*365/giorni : stimaAnnuoGas(d.qPeriodo, d.dal, d.al);
+      if(!ok(annuo)) annuo = d.qPeriodo*365/giorni;
+      r.annuoStimato=true;
+      r.note.push(`Consumo annuo non presente in bolletta: stimato ${fmt(annuo,0)} ${U} dal periodo fatturato`+(isL?'':' tenendo conto della stagione'));
+    }
+    else { r.manca = `serve il consumo del periodo con le date (o il consumo annuo, se è in bolletta)`; return r; }
   }
   let metodo = d.metodo;
   if(metodo==='auto'){
     if(d.tipoPrezzo==='indicizzato' && ok(d.spread)) metodo='spread';
-    else if(ok(d.spesa) && ok(d.qPeriodo)) metodo='spesa';
+    else if((ok(d.spesa)||ok(d.spesaConsumi)) && ok(d.qPeriodo)) metodo='spesa';
     else if(ok(d.prezzo)) metodo='prezzo';
     else if(ok(d.spread)) metodo='spread';
   }
   const quota = ok(d.quota) ? d.quota : 0;
-  const disp = isL ? (L.luce.disp||0) : (L.gas.altri||0);
+  // corrispettivi di vendita letti in bolletta (o stimati dal Listino) da applicare anche all'offerta TIM
+  const disp = isL ? (ok(d.disp) ? d.disp : (L.luce.disp||0)) : (L.gas.altri||0);
+  const cap  = isL && ok(d.capacity) ? d.capacity : 0;
   const perdF = 1 + (L.luce.perdite||0)/100;
-  let unit; // € per unità, comprensivo di tutto ciò che è "materia" lato cliente
+  let unit, fissoAnno = quota*12;
   if(metodo==='spesa'){
-    if(!(ok(d.spesa)&&ok(d.qPeriodo))){ r.manca='per questo metodo servono spesa materia e consumo del periodo'; return r; }
-    if(ok(d.quota) && ok(giorni)){ unit = (d.spesa - d.quota*giorni*12/365)/d.qPeriodo; }
-    else { unit = d.spesa/d.qPeriodo; if(!ok(d.quota)) r.note.push('Quota fissa non trovata: è compresa nel prezzo medio'); else r.note.push('Date del periodo mancanti: quota fissa compresa nel prezzo medio'); }
-    r.metodoTesto = `spesa materia ÷ consumo = ${fmt(unit,4)} €/${U}`;
-    if(unit<=0){ r.manca='i valori di spesa e quota fissa non sono coerenti'; return r; }
+    if(ok(d.spesaConsumi) && ok(d.qPeriodo)){ unit = d.spesaConsumi/d.qPeriodo; }
+    else if(ok(d.spesa) && ok(d.qPeriodo) && ok(d.quota) && ok(giorni)){ unit = (d.spesa - d.quota*Math.max(1,Math.round(giorni/30.4)))/d.qPeriodo; }
+    else if(ok(d.spesa) && ok(d.qPeriodo)){ unit = d.spesa/d.qPeriodo; fissoAnno=0; r.note.push(ok(d.quota)?'Date del periodo mancanti: quota fissa compresa nel prezzo medio':'Quota fissa non trovata: è compresa nel prezzo medio'); }
+    else { r.manca='per questo metodo servono spesa per la vendita e consumo del periodo'; return r; }
+    r.metodoTesto = `spesa per la vendita ÷ consumo = ${fmt(unit,4)} €/${U}`;
+    if(!(unit>0)){ r.manca='i valori di spesa e quota fissa non sono coerenti'; return r; }
   } else if(metodo==='prezzo'){
-    if(!ok(d.prezzo)){ r.manca='inserisci il prezzo unitario'; return r; }
-    unit = isL ? d.prezzo*(d.perdite?perdF:1) + disp : d.prezzo + disp;
-    r.metodoTesto = `prezzo ${fmt(d.prezzo,4)} €/${U}` + (isL? ` ${d.perdite?'+ perdite ':''}+ dispacciamento`:'');
+    if(!ok(d.prezzo)){ r.manca='inserisci il prezzo di vendita'; return r; }
+    if(d.prezzoCompleto) unit = d.prezzo;
+    else unit = isL ? d.prezzo*(d.perdite?perdF:1) + disp + cap : d.prezzo + disp;
+    r.metodoTesto = `prezzo di vendita ${fmt(d.prezzo,4)} €/${U}` + (isL && !d.prezzoCompleto ? ` ${d.perdite?'+ perdite ':''}+ dispacciamento`:'');
   } else if(metodo==='spread'){
     if(!ok(d.spread)){ r.manca='inserisci lo spread'; return r; }
-    unit = isL ? (L.luce.pun*perdF + d.spread*perdF + disp) : (L.gas.psv + d.spread + disp);
+    unit = isL ? (L.luce.pun*perdF + d.spread*perdF + disp + cap) : (L.gas.psv + d.spread + disp);
     r.metodoTesto = isL ? `PUN ${fmt(L.luce.pun,4)} + spread ${fmt(d.spread,4)} €/kWh (con perdite e dispacciamento)` : `PSV ${fmt(L.gas.psv,3)} + spread ${fmt(d.spread,3)} €/Smc`;
     r.note.push(isL?'Stima con il PUN di riferimento del Listino':'Stima con il PSV di riferimento del Listino (uguale per cliente e TIM)');
-  } else { r.manca='mancano prezzo, spesa materia o spread'; return r; }
-  const fissoAnno = metodo==='spesa' && !(ok(d.quota)&&ok(giorni)) ? 0 : quota*12;
+  } else { r.manca='mancano prezzo di vendita, spesa per la vendita o spread'; return r; }
   const attuale = unit*annuo + fissoAnno;
-  const unitTIM = isL ? (L.luce.prezzo + disp) : (L.gas.psv + L.gas.spread + disp);
+  const unitTIM = isL ? (L.luce.prezzo + disp + cap) : (L.gas.psv + L.gas.spread + disp);
+  if(isL && (ok(d.disp)||cap)) r.note.push('TIM calcolata con gli stessi dispacciamento'+(cap?' e capacity market':'')+' letti in bolletta');
   const tim = unitTIM*annuo + (isL?L.luce.comm:L.gas.comm);
   const bonus = (isL?L.luce.bonusMese*L.luce.bonusMesi:L.gas.bonusMese*L.gas.bonusMesi);
   Object.assign(r,{ok:true,annuo,unit,unitTIM,fissoAnno,attuale,tim,diff:attuale-tim,bonus,metodo,U});
@@ -604,7 +692,7 @@ function renderDomande(){
   for(const [k,q,kc,u,dip] of DOMANDE){
     if(dip && CLIENTE[dip]===true) continue;
     const v=CLIENTE[k];
-    h+=`<div class="toggle"><span class="q">${q}</span><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">`;
+    h+=`<div class="toggle"><span class="q">${q}${k==='residente'&&CLIENTE._residenteBolletta?' <span class="chip ok">dalla bolletta</span>':''}</span><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">`;
     if(kc && v===true) h+=`<label class="c" style="flex-direction:row;align-items:center;gap:4px">quanto paga <input class="inline-num" data-cost="${kc}" inputmode="decimal" value="${isFinite(CLIENTE[kc])?fmt(CLIENTE[kc],2):''}"> ${u}</label>`;
     h+=`<span class="seg" data-q="${k}"><button data-v="1" class="${v===true?'on':''}">Sì</button><button data-v="0" class="${v===false?'on':''}">No</button></span></span></div>`;
   }
@@ -616,6 +704,8 @@ renderDomande();
 $('#btnCalcola').onclick=()=>vai('risultato');
 
 /* ===================== CONVENIENZA ===================== */
+let SCONTO = { mese:0, mesi:12 };
+function mesiA(dataStr){ const D=parseData(dataStr); if(!D) return NaN; const o=new Date(); return (D.getFullYear()-o.getFullYear())*12 + (D.getMonth()-o.getMonth()) + (D.getDate()>=o.getDate()?0:-1); }
 function calcolaScala(){
   const R = { luce:calcolaFornitura('luce'), gas:calcolaFornitura('gas') };
   const forn = ['luce','gas'].filter(k=>R[k].ok);
@@ -623,68 +713,69 @@ function calcolaScala(){
   const n = forn.length; const C=CLIENTE;
   const giaCliente = C.fissoTIM===true || C.mobileTIM===true;
   const passi=[];
-  // 1 energia
   const energia = forn.reduce((s,k)=>s+R[k].diff,0);
-  const energia2 = forn.reduce((s,k)=>s+R[k].diff,0); // 2° anno: stesse condizioni (luce bloccata 24 mesi)
-  passi.push({id:'energia', tit:`Passaggio ${n===2?'luce e gas':forn[0]} a TIM Energia`, det: forn.map(k=>`${k==='luce'?'Luce':'Gas'}: oggi ${eur(R[k].attuale)} → TIM ${eur(R[k].tim)} all'anno`).join(' · ') + (giaCliente?'':' · da sola richiede un prodotto TIM attivo o attivato insieme'), a1:energia, a2:energia2, incl:true});
-  // 2 bonus special
+  passi.push({id:'energia', tit:`Passaggio ${n===2?'luce e gas':forn[0]} a TIM Energia`, det: forn.map(k=>`${k==='luce'?'Luce':'Gas'}: oggi ${eur(R[k].attuale)} → TIM ${eur(R[k].tim)} all'anno`).join(' · ') + (giaCliente?'':' · da sola richiede un prodotto TIM attivo o attivato insieme'), a1:energia, a2:energia, incl:true});
   const bonus = forn.reduce((s,k)=>s+R[k].bonus,0);
-  passi.push({id:'bonus', tit:'Bonus TIM Energia Special', det:`${fmt(L.luce.bonusMese,2)} €/mese per ${L.luce.bonusMesi} mesi su ogni fornitura (${n} ${n===2?'forniture':'fornitura'})`+(giaCliente?' · già cliente TIM: spetta':' · spetta attivando WiFi Casa o Mobile TIM'), a1:bonus, a2:0, incl:giaCliente, richiede:giaCliente?null:'prodotto'});
-  // 3 wifi
+  passi.push({id:'bonus', tit:'Bonus TIM Energia Special', det:`${fmt(L.luce.bonusMese,2)} €/mese per ${L.luce.bonusMesi} mesi su ogni fornitura (${n} ${n===2?'forniture':'fornitura'})`+(giaCliente?' · già cliente TIM: spetta':' · spetta attivando WiFi Casa o Mobile TIM'), a1:bonus, a2:0, incl:giaCliente});
+  const prezzoWifi = L.wifi.listino - (n===2?L.wifi.scontoDue:L.wifi.scontoUna);
+  const prezzoMob = n===2 ? L.mobile.prezzoDue : L.mobile.prezzoUna;
   if(C.fissoTIM!==true){
-    const prezzo = L.wifi.listino - (n===2?L.wifi.scontoDue:L.wifi.scontoUna);
     if(C.internet===true && ok(C.costoInternet)){
-      const a1=(C.costoInternet-prezzo)*12 - L.wifi.attivazione, a2=(C.costoInternet-prezzo)*12;
-      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`oggi ${eur(C.costoInternet,2)}/mese → TIM ${eur(prezzo,2)}/mese (sconto ${eur(L.wifi.listino-prezzo,0)}/mese con ${n===2?'luce e gas':'una fornitura'}); attivazione ${eur(L.wifi.attivazione,2)}`, a1, a2, incl:a1>0||(!giaCliente&&a1+bonus>0)});
+      const a1=(C.costoInternet-prezzoWifi)*12 - L.wifi.attivazione, a2=(C.costoInternet-prezzoWifi)*12;
+      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`oggi ${eur(C.costoInternet,2)}/mese → TIM ${eur(prezzoWifi,2)}/mese (sconto ${eur(L.wifi.listino-prezzoWifi,0)}/mese con ${n===2?'luce e gas':'una fornitura'}); attivazione ${eur(L.wifi.attivazione,2)}`, a1, a2, incl:a1>0});
     } else if(C.internet===true){
-      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`inserisci quanto paga oggi per internet per calcolare il risparmio (TIM: ${eur(prezzo,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
-    } else if(C.internet===false){
-      passi.push({id:'wifi', tit:'TIM WiFi Casa (nuovo servizio)', det:`non ha internet: sarebbe un costo in più di ${eur(prezzo,2)}/mese, non lo conto come risparmio`, a1:NaN, a2:NaN, incl:false, info:true});
+      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`inserisci quanto paga oggi per internet per calcolare il risparmio (TIM: ${eur(prezzoWifi,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
     }
   }
-  // 4 mobile
   if(C.mobileTIM!==true){
-    const prezzo = n===2 ? L.mobile.prezzoDue : L.mobile.prezzoUna;
     if(C.sim===true && ok(C.costoSim)){
-      const a1=(C.costoSim-prezzo)*12 - L.mobile.sim, a2=(C.costoSim-prezzo)*12;
-      passi.push({id:'mobile', tit:'SIM con TIM Mobile + Energia', det:`oggi ${eur(C.costoSim,2)}/mese → TIM ${eur(prezzo,2)}/mese; SIM ${eur(L.mobile.sim,2)}`, a1, a2, incl:a1>0||(!giaCliente&&a1+bonus>0)});
+      const a1=(C.costoSim-prezzoMob)*12 - L.mobile.sim, a2=(C.costoSim-prezzoMob)*12;
+      passi.push({id:'mobile', tit:'SIM con TIM Mobile + Energia', det:`oggi ${eur(C.costoSim,2)}/mese → TIM ${eur(prezzoMob,2)}/mese; SIM ${eur(L.mobile.sim,2)}`, a1, a2, incl:a1>0});
     } else if(C.sim===true){
-      passi.push({id:'mobile', tit:'SIM con TIM Mobile + Energia', det:`inserisci quanto paga oggi per la SIM (TIM: ${eur(prezzo,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
+      passi.push({id:'mobile', tit:'SIM con TIM Mobile + Energia', det:`inserisci quanto paga oggi per la SIM (TIM: ${eur(prezzoMob,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
     }
   }
-  // bonus special per nuovi: sbloccato da wifi o mobile inclusi
-  const pW = passi.find(p=>p.id==='wifi'), pM = passi.find(p=>p.id==='mobile');
-  const pB = passi.find(p=>p.id==='bonus');
+  const pW = passi.find(p=>p.id==='wifi'), pM = passi.find(p=>p.id==='mobile'), pB = passi.find(p=>p.id==='bonus');
   if(!giaCliente){
-    const sblocca = (pW&&pW.incl) || (pM&&pM.incl);
-    pB.incl = !!sblocca;
-    if(!sblocca){
-      // ha senso attivare il prodotto più conveniente solo per il bonus?
+    pB.incl = !!((pW&&pW.incl) || (pM&&pM.incl));
+    if(!pB.incl){
       const cand = [pW,pM].filter(p=>p && isFinite(p.a1)).sort((a,b)=>b.a1-a.a1)[0];
       if(cand && cand.a1 + bonus > 0){ cand.incl=true; pB.incl=true; cand.det += ' · conviene anche per sbloccare il bonus Special'; }
     }
   }
-  // 5 pacchetto completo
   if(!giaCliente && pW && pW.incl && pM && pM.incl){
     const tv = (L.pacchetto.tvMese||0)*12;
-    const extra = L.pacchetto.bonusFisso + L.pacchetto.bonusMobile - tv;
-    passi.push({id:'pacchetto', tit:'Pacchetto completo in negozio (Energia + WiFi + TV + Mobile)', det:`bonus ${eur(L.pacchetto.bonusFisso)} su WiFi/TV + ${eur(L.pacchetto.bonusMobile)} su Mobile`+(tv?` − TV ${eur(L.pacchetto.tvMese,2)}/mese`:' (verifica il costo della TV nel Listino)')+(C.tv===true?'':' · proponilo se interessa la TV'), a1:extra, a2:-tv, incl: C.tv===true});
+    passi.push({id:'pacchetto', tit:'Pacchetto completo in negozio (Energia + WiFi + TV + Mobile)', det:`bonus ${eur(L.pacchetto.bonusFisso)} su WiFi/TV + ${eur(L.pacchetto.bonusMobile)} su Mobile`+(tv?` − TV ${eur(L.pacchetto.tvMese,2)}/mese`:' (verifica il costo della TV nel Listino)')+(C.tv===true?'':' · proponilo se interessa la TV'), a1:L.pacchetto.bonusFisso + L.pacchetto.bonusMobile - tv, a2:-tv, incl: C.tv===true});
   }
-  // 6 contributo
   if(R.luce.ok && C.isee===true && C.residente!==false){
     passi.push({id:'contributo', tit:'Contributo straordinario luce', det:'riconosciuto in automatico in bolletta luce TIM Energia (ISEE ≤ 25.000 €, residente, senza bonus sociale); verifica che il fornitore attuale non lo dia già', a1:L.contributo.importo, a2:L.contributo.importo, incl:true});
   }
+  // totale senza sconto (serve per calcolare quanto manca)
+  let base1=0; for(const p of passi) if(p.incl && isFinite(p.a1)) base1+=p.a1;
+  if(SCONTO.mese>0){
+    const m=Math.max(1,SCONTO.mesi||12);
+    passi.push({id:'sconto', tit:'Sconto riservato in negozio', det:`${eur(SCONTO.mese,2)}/mese per ${m} mesi`, a1:SCONTO.mese*Math.min(m,12), a2:SCONTO.mese*Math.max(0,Math.min(m,24)-12), incl:true});
+  }
   let c1=0,c2=0, sogliaPasso=null;
   for(const p of passi){ if(p.incl && isFinite(p.a1)){ c1+=p.a1; c2+=p.a2||0; p.cum1=c1; if(sogliaPasso===null && c1>0) sogliaPasso=p; } }
-  return {R, forn, passi, tot1:c1, tot2:c2, energia, bonus, giaCliente, sogliaPasso};
+  return {R, forn, n, passi, tot1:c1, tot2:c2, base1, energia, bonus, giaCliente, sogliaPasso, prezzoWifi, prezzoMob};
+}
+
+function scadenzeCliente(S){
+  const out=[];
+  for(const k of S.forn){ const d=DATI[k]; if(d.scadenzaPrezzo){ const m=mesiA(d.scadenzaPrezzo); if(isFinite(m)) out.push({k, data:d.scadenzaPrezzo, mesi:m, tipo:d.tipoPrezzo}); } }
+  return out;
 }
 
 function argomenti(S){
   const a=[]; const R=S.R;
+  for(const s of scadenzeCliente(S)){
+    if(s.mesi<=6 && s.mesi>=0) a.push(`<b>Il prezzo ${s.k} del cliente scade il ${esc(s.data)}</b> (tra ${s.mesi<=0?'meno di un mese':s.mesi+' mesi'}): dopo il fornitore potrà applicare nuove condizioni. Con TIM il prezzo della luce resta bloccato ${L.luce.mesiBlocco} mesi.`);
+  }
   if(R.luce.ok){
     const d=DATI.luce;
     if(d.tipoPrezzo==='indicizzato') a.push(`<b>Luce a prezzo bloccato per ${L.luce.mesiBlocco} mesi</b>: oggi il cliente paga in base al PUN, che può salire; con TIM il prezzo dell'energia resta ${fmt(L.luce.prezzo,3)} €/kWh fino a 2 anni.`);
-    else a.push(`<b>Prezzo luce bloccato ${L.luce.mesiBlocco} mesi</b> (${fmt(L.luce.prezzo,3)} €/kWh): verifica quando scade il prezzo dell'offerta attuale del cliente, spesso dura 12 mesi.`);
+    else a.push(`<b>Prezzo luce bloccato ${L.luce.mesiBlocco} mesi</b> (${fmt(L.luce.prezzo,3)} €/kWh), senza sorprese al rinnovo.`);
     if(/tutel/i.test(d.mercato||'')) a.push(`Il cliente è in <b>${esc(d.mercato)}</b>: i clienti vulnerabili (es. over 75) possono restare in tutela, valuta con attenzione prima di proporre il cambio.`);
   }
   if(R.gas.ok){
@@ -698,42 +789,72 @@ function argomenti(S){
   a.push('<b>Energia verde</b>: luce 100% da fonti rinnovabili (Garanzie d\'Origine) e gas con emissioni CO₂ compensate.');
   a.push('<b>Tutto in un unico posto</b>: bollette e consumi nell\'app MyTIM, assistenza al numero verde 800.800.187 e in negozio.');
   if(S.giaCliente) a.push('Il cliente è <b>già TIM</b>: ha diritto al bonus Special e ritrova tutto nella stessa app.');
-  if(R.luce.ok && CLIENTE.isee===null) a.push(`Chiedi l'ISEE: con ISEE fino a 25.000 € la luce TIM dà diritto al <b>contributo straordinario fino a ${eur(L.contributo.importo)}</b> l'anno (2026 e 2027).`);
   return a;
 }
 
+function leveVenditore(S){
+  const C=CLIENTE, lev=[];
+  for(const p of S.passi){ if(!p.incl && p.id!=='bonus' && isFinite(p.a1) && p.a1>0) lev.push(`<b>${esc(p.tit)}</b>: ${eurS(p.a1)} il 1° anno — ${esc(p.det)}`); }
+  if(C.fissoTIM!==true && C.internet!==true){ const soglia=S.prezzoWifi + L.wifi.attivazione/12; lev.push(`<b>WiFi Casa</b>: se il cliente ha internet con un altro operatore e paga più di <b>${eur(soglia,2)}/mese</b>, passando a TIM risparmia (TIM ${eur(S.prezzoWifi,2)}/mese) e sblocca il bonus Special.`); }
+  if(C.mobileTIM!==true && C.sim!==true){ const soglia=S.prezzoMob + L.mobile.sim/12; lev.push(`<b>SIM TIM</b>: se paga più di <b>${eur(soglia,2)}/mese</b> per il cellulare, con TIM Mobile + Energia (${eur(S.prezzoMob,2)}/mese) risparmia e sblocca il bonus Special.`); }
+  const pB=S.passi.find(p=>p.id==='bonus'); if(pB && !pB.incl) lev.push(`<b>Bonus Special ${eur(S.bonus)}</b>: si sblocca con un qualsiasi prodotto TIM (WiFi Casa o SIM).`);
+  if(S.R.luce.ok && C.isee===null) lev.push(`<b>Contributo luce fino a ${eur(L.contributo.importo)}/anno</b>: chiedi se ha un ISEE fino a 25.000 €.`);
+  for(const s of scadenzeCliente(S)){ if(s.mesi>6) lev.push(`Il prezzo ${s.k} del cliente è bloccato fino al <b>${esc(s.data)}</b>: se oggi non passa, fissa un richiamo per qualche mese prima della scadenza.`); }
+  return lev;
+}
+
 function testoWhatsApp(S){
-  const r=[]; r.push('Ciao! Ecco il confronto della tua bolletta con le offerte TIM Energia:');
-  for(const k of S.forn){ const x=S.R[k]; r.push(`${k==='luce'?'💡 Luce':'🔥 Gas'}: oggi circa ${eur(x.attuale)}/anno, con TIM circa ${eur(x.tim)}/anno (materia e vendita, IVA esclusa)`); }
-  for(const p of S.passi){ if(p.incl && isFinite(p.a1) && p.id!=='energia') r.push(`✅ ${p.tit}: ${eurS(p.a1)} il 1° anno`); }
-  r.push(`👉 Totale vantaggio 1° anno: ${eurS(S.tot1)}${isFinite(S.tot2)?` · 2° anno: ${eurS(S.tot2)}`:''}`);
-  r.push(`🔒 Prezzo luce bloccato ${L.luce.mesiBlocco} mesi · nessun vincolo né penali · nessun costo di attivazione · energia verde`);
-  r.push(`Offerte valide per sottoscrizioni entro il ${dataIT(L.luce.scadenza)}. Ti aspetto in negozio!`);
+  const r=[]; const pos=S.passi.filter(p=>p.incl && isFinite(p.a1) && p.a1>0 && p.id!=='energia');
+  if(S.tot1>=5 || (S.tot1>=0 && S.energia>=0)){
+    r.push('Ciao! Ecco il confronto della tua bolletta con le offerte TIM Energia:');
+    for(const k of S.forn){ const x=S.R[k]; r.push(`${k==='luce'?'💡 Luce':'🔥 Gas'}: oggi circa ${eur(x.attuale)}/anno, con TIM circa ${eur(x.tim)}/anno (vendita, IVA esclusa)`); }
+    for(const p of pos) r.push(`✅ ${p.tit}: ${eurS(p.a1)} il 1° anno`);
+    r.push(`👉 Vantaggio stimato il 1° anno: ${eurS(S.tot1)}`);
+  } else {
+    r.push('Ciao! Ho confrontato la tua bolletta con le offerte TIM Energia: la tua offerta attuale è già buona, ma passando a TIM avresti comunque dei vantaggi:');
+    for(const p of pos) r.push(`✅ ${p.tit}: ${eurS(p.a1)} il 1° anno`);
+  }
+  for(const s of scadenzeCliente(S)) if(s.mesi>=0 && s.mesi<=6) r.push(`⏰ Il prezzo ${s.k} della tua offerta attuale scade il ${s.data}: con TIM la luce resta bloccata ${L.luce.mesiBlocco} mesi.`);
+  r.push(`🔒 Prezzo luce bloccato ${L.luce.mesiBlocco} mesi · nessun vincolo né penali · nessun costo di attivazione · energia 100% verde`);
+  r.push(S.tot1>=0 ? `Offerte valide per sottoscrizioni entro il ${dataIT(L.luce.scadenza)}. Ti aspetto in negozio!` : 'Passa in negozio: valutiamo insieme la proposta più adatta a te!');
   return r.join('\n');
 }
 
 function calcolaERender(){
-  // rilegge eventuali campi modificati
   const S = calcolaScala();
   if(S.errore){ $('#risultato').innerHTML=`<div class="avviso">${esc(S.errore)}</div><button class="btn" data-vai="bolletta">← Torna alla bolletta</button>`; return; }
   const domandeMancanti = CLIENTE.fissoTIM===null || CLIENTE.mobileTIM===null;
   let h='';
   if(domandeMancanti) h+=`<div class="avviso">Rispondi alle <a href="#" data-vai="cliente">domande sul cliente</a> per trovare tutte le offerte TIM a cui ha diritto.</div>`;
-  // verdetto
-  let cl='', titolo='', sotto='';
-  if(S.energia>=0){ cl='verde'; titolo='TIM conviene già sull\'energia'; sotto=`Risparmio solo su luce/gas: ${eurS(S.energia)} l'anno. Con le altre offerte TIM il vantaggio sale a ${eurS(S.tot1)} il 1° anno.`; }
-  else if(S.tot1>0){ cl='verde'; titolo='Con le offerte TIM il cliente ci guadagna'; sotto=`Oggi paga meno sull'energia (${eurS(S.energia)} l'anno), ma ${S.sogliaPasso?('con “'+S.sogliaPasso.tit+'”'):'combinando le offerte'} il conto diventa positivo: ${eurS(S.tot1)} il 1° anno.`; }
-  else { titolo='L\'offerta attuale del cliente è più economica'; sotto=`Differenza: ${eurS(S.tot1)} il 1° anno. Punta sugli argomenti non economici qui sotto e su eventuali servizi TIM che il cliente già paga altrove.`; }
-  h+=`<div class="verdetto ${cl}"><div class="small" style="color:#fff;opacity:.85">Vantaggio stimato per il cliente · 1° anno</div><div class="big">${eurS(S.tot1)}</div><p><b>${esc(titolo)}</b></p><p>${esc(sotto)}</p></div>`;
-  // confronto per fornitura
+  // ---- verdetto (toni morbidi quando l'offerta del cliente costa meno)
+  let cl='', etich='Vantaggio stimato per il cliente · 1° anno', big=eurS(S.tot1), titolo='', sotto='';
+  const gapMese = -S.tot1/12;
+  if(S.tot1>=0 && S.tot1<5 && S.energia<0){
+    cl='verde'; titolo='Passaggio in pareggio'; big='≈ 0 €';
+    sotto=`Con ${S.sogliaPasso?('“'+S.sogliaPasso.tit+'”'):'le offerte scelte'} il cliente spende come oggi il 1° anno e in più ha il prezzo luce bloccato ${L.luce.mesiBlocco} mesi e i servizi TIM.`;
+  } else if(S.tot1>=0){
+    cl='verde';
+    if(S.energia>=0){ titolo='TIM conviene già sull\'energia'; sotto=`Risparmio su luce/gas: ${eurS(S.energia)} l'anno. Con le altre offerte TIM il vantaggio arriva a ${eurS(S.tot1)} il 1° anno.`; }
+    else { titolo='Con le offerte TIM il cliente ci guadagna'; sotto=`Sull'energia oggi spende un po' meno, ma ${S.sogliaPasso?('con “'+S.sogliaPasso.tit+'”'):'combinando le offerte'} il conto diventa positivo: ${eurS(S.tot1)} il 1° anno.`; }
+  } else {
+    etich='Differenza da colmare'; big=`${fmt(gapMese,2)} € al mese`;
+    if(gapMese<=5){ titolo='Offerte quasi alla pari'; sotto='L\'offerta attuale del cliente è molto competitiva, ma la differenza è minima: con un piccolo sconto o un servizio TIM in più il passaggio diventa conveniente.'; }
+    else if(gapMese<=15){ titolo='Il cliente ha già una buona offerta'; sotto=`Per pareggiare servono circa ${fmt(gapMese,2)} € al mese (${eur(-S.tot1)} il 1° anno): guarda le leve a tua disposizione qui sotto.`; }
+    else { titolo='Offerta attuale molto conveniente sull\'energia'; sotto='Più che sul prezzo, punta su prezzo bloccato, servizi TIM e assistenza in negozio. Guarda qui sotto le leve a tua disposizione.'; }
+  }
+  h+=`<div class="verdetto ${cl}"><div class="small" style="color:#fff;opacity:.85">${etich}</div><div class="big">${big}</div><p><b>${esc(titolo)}</b></p><p>${esc(sotto)}</p></div>`;
+  // ---- confronto per fornitura
   h+='<div class="griglia due">';
-  for(const k of S.forn){ const x=S.R[k];
-    h+=`<div class="card"><h2>${k==='luce'?'💡 Luce':'🔥 Gas'} <span class="small" style="font-weight:400">${fmt(x.annuo,0)} ${x.U}/anno</span></h2>
+  for(const k of S.forn){ const x=S.R[k]; const d=DATI[k];
+    const info=[d.fornitore, d.offerta, d.tipoPrezzo?('prezzo '+d.tipoPrezzo):'', d.scadenzaPrezzo?('scade il '+d.scadenzaPrezzo):''].filter(Boolean).map(esc).join(' · ');
+    h+=`<div class="card"><h2>${k==='luce'?'💡 Luce':'🔥 Gas'} <span class="small" style="font-weight:400">${fmt(x.annuo,0)} ${x.U}/anno${x.annuoStimato?' (stima)':''}</span></h2>
+    ${info?`<p class="small" style="margin-top:0">${info}</p>`:''}
     <div class="confronto"><div>Oggi<b>${eur(x.attuale)}</b><span class="small">${fmt(x.unit,4)} €/${x.U}</span></div><div>TIM<b>${eur(x.tim)}</b><span class="small">${fmt(x.unitTIM,4)} €/${x.U}</span></div><div>Differenza<b class="${cls(x.diff)}">${eurS(x.diff)}</b><span class="small">all'anno</span></div></div>
-    ${x.note.length?'<p class="small">'+x.note.map(esc).join('<br>')+'</p>':''}</div>`;
+    ${x.note.length?'<p class="small">'+x.note.map(esc).join('<br>')+'</p>':''}
+    ${ok(d.spesaAnnua)?`<p class="small">Spesa annua sostenuta dichiarata in bolletta (tutto compreso): <b>${eur(d.spesaAnnua,2)}</b></p>`:''}</div>`;
   }
   h+='</div>';
-  // scala
+  // ---- scala
   h+=`<div class="card"><h2>🪜 Scala della convenienza</h2><div class="legenda"><span><span class="pos">+</span> il cliente risparmia</span><span><span class="neg">−</span> il cliente spende di più</span><span>righe chiare = non incluse nel totale</span></div>
   <div style="overflow-x:auto"><table class="scala"><thead><tr><th>Offerta TIM</th><th style="text-align:right">1° anno</th><th style="text-align:right">2° anno</th><th style="text-align:right">Progressivo</th></tr></thead><tbody>`;
   for(const p of S.passi){
@@ -742,15 +863,40 @@ function calcolaERender(){
   }
   h+=`<tr class="tot"><td>Totale combinazione consigliata</td><td class="n ${cls(S.tot1)}">${eurS(S.tot1)}</td><td class="n ${cls(S.tot2)}">${eurS(S.tot2)}</td><td></td></tr></tbody></table></div>
   <p class="small">2° anno: la luce resta a prezzo bloccato; per il gas si usa lo stesso PSV di riferimento; i bonus valgono solo il 1° anno.</p></div>`;
-  // argomenti
+  // ---- per il venditore
+  const gapBase = -S.base1; const mesiS = Math.max(1, SCONTO.mesi||12);
+  const scontoMin = gapBase>0 ? Math.ceil(gapBase/Math.min(mesiS,12)*100)/100 : 0;
+  const max = L.venditore?.scontoMaxMese||0;
+  let hv='';
+  if(SCONTO.mese>0 && S.tot2<0) hv+=`<div class="avviso">Dal 2° anno, finiti sconto e bonus, la differenza torna a circa <b>${eur(-S.tot2)} l'anno</b> (${eur(-S.tot2/12,2)}/mese).</div>`;
+  if(gapBase>0) hv+=`<p>Senza sconti, per pareggiare servono <b>${eur(gapBase)}</b> il 1° anno, cioè circa <b>${eur(gapBase/12,2)} al mese</b>.</p>`;
+  else hv+=`<p>Il passaggio conviene già al cliente: uno sconto è un extra per chiudere il contratto.</p>`;
+  const lev = leveVenditore(S);
+  if(lev.length) hv+=`<h3>Leve ancora disponibili</h3><ul class="arg">${lev.map(x=>'<li>'+x+'</li>').join('')}</ul>`;
+  hv+=`<h3>Simula uno sconto in negozio</h3>
+    <div class="campi"><label class="c">Sconto €/mese<input id="scMese" inputmode="decimal" value="${SCONTO.mese?fmt(SCONTO.mese,2):''}" placeholder="0,00"></label>
+    <label class="c">Per quanti mesi<input id="scMesi" inputmode="numeric" value="${SCONTO.mesi||12}"></label></div>
+    <div class="azioni">${gapBase>0?`<button class="btn sec picc" id="btnScMin">Applica lo sconto minimo per pareggiare (${eur(scontoMin,2)}/mese)</button>`:''}
+    <button class="btn sec picc" id="btnScApplica">Ricalcola</button>${SCONTO.mese?'<button class="btn sec picc" id="btnScZero">Togli sconto</button>':''}</div>`;
+  if(max>0){
+    const tot = max*Math.min(L.venditore.scontoMesi||12,12);
+    hv+=`<p class="small">Il tuo sconto massimo è ${eur(max,2)}/mese per ${L.venditore.scontoMesi||12} mesi (${eur(tot)} il 1° anno): ${gapBase<=0?'non serve per pareggiare.':(tot>=gapBase?'<b>basta per rendere conveniente il passaggio</b>.':`non basta da solo, mancherebbero ${eur(gapBase-tot)}: abbinalo alle leve qui sopra.`)}</p>`;
+    if(SCONTO.mese>max) hv+=`<div class="avviso">Lo sconto simulato supera il tuo massimo (${eur(max,2)}/mese).</div>`;
+  } else hv+=`<p class="small">Puoi impostare lo sconto massimo che puoi concedere nel Listino (sezione “Sconti del venditore”).</p>`;
+  h+=`<div class="card no-print" style="border-color:#b8cbef"><h2>🤝 Per il venditore</h2>${hv}</div>`;
+  // ---- argomenti
   h+=`<div class="card"><h2>💬 Argomenti per il cliente</h2><ul class="arg">${argomenti(S).map(x=>'<li>'+x+'</li>').join('')}</ul></div>`;
-  // whatsapp
+  // ---- whatsapp
   const wa = testoWhatsApp(S);
   h+=`<div class="card no-print"><h2>📲 Riepilogo da inviare</h2><textarea id="waTesto">${esc(wa)}</textarea>
    <div class="azioni"><button class="btn verde" id="btnWA">WhatsApp</button><button class="btn sec" id="btnCopia">Copia testo</button><button class="btn sec" id="btnCondividi">Condividi</button><button class="btn sec" onclick="window.print()">🖨️ Stampa / PDF</button></div>
    <p class="small">Il testo non contiene dati personali del cliente (nome, POD, PDR).</p></div>`;
-  h+=`<p class="small">Offerte del Listino aggiornato al ${dataIT(L.aggiornato)}. Calcolo su materia energia e quota di vendita, IVA e imposte escluse: oneri di rete, oneri di sistema e imposte sono uguali per tutti i fornitori.</p>`;
+  h+=`<p class="small">Offerte del Listino aggiornato al ${dataIT(L.aggiornato)}. Calcolo sulla spesa per la vendita (energia e quota fissa), IVA e imposte escluse: la spesa per la rete e gli oneri generali di sistema è uguale per tutti i fornitori.</p>`;
   $('#risultato').innerHTML=h;
+  const leggiSc=()=>{ SCONTO.mese=Math.max(0,parseIT($('#scMese').value)||0); SCONTO.mesi=Math.max(1,parseInt($('#scMesi').value)||12); };
+  $('#btnScApplica').onclick=()=>{ leggiSc(); calcolaERender(); };
+  if($('#btnScMin')) $('#btnScMin').onclick=()=>{ leggiSc(); SCONTO.mese=scontoMin; calcolaERender(); };
+  if($('#btnScZero')) $('#btnScZero').onclick=()=>{ SCONTO.mese=0; calcolaERender(); };
   $('#btnWA').onclick=()=>window.open('https://wa.me/?text='+encodeURIComponent($('#waTesto').value),'_blank');
   $('#btnCopia').onclick=async()=>{ try{ await navigator.clipboard.writeText($('#waTesto').value); $('#btnCopia').textContent='✅ Copiato'; }catch(e){ $('#waTesto').select(); document.execCommand('copy'); } };
   $('#btnCondividi').onclick=()=>{ if(navigator.share) navigator.share({text:$('#waTesto').value}).catch(()=>{}); else $('#btnCopia').click(); };
