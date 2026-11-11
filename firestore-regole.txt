@@ -1,0 +1,29 @@
+// TIM Bollette - regole da AGGIUNGERE a quelle gia' presenti nel progetto tim-area-1
+// (Firebase console > Firestore Database > Regole). NON cancellare le regole delle app Energia e Business:
+// incolla le due funzioni e i tre blocchi "match /bollette_..." dentro
+// "match /databases/{database}/documents { ... }", poi premi Pubblica.
+// Se l'amministratore usa un'altra email, cambiala qui sotto e nel file firebase-config.js.
+
+    function bolletteAdmin() {
+      return request.auth != null && (
+        request.auth.token.email in ['applicazionijcp@gmail.com'] ||
+        get(/databases/$(database)/documents/bollette_utenti/$(request.auth.uid)).data.ruolo == 'admin');
+    }
+    function bolletteAbilitato() {
+      return request.auth != null && (bolletteAdmin() ||
+        (exists(/databases/$(database)/documents/bollette_utenti/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/bollette_utenti/$(request.auth.uid)).data.attivo != false));
+    }
+    match /bollette_utenti/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || bolletteAdmin());
+      allow write: if bolletteAdmin();
+    }
+    match /bollette_eventi/{id} {
+      allow create: if bolletteAbilitato() && request.resource.data.uid == request.auth.uid;
+      allow read: if bolletteAdmin();
+      allow update, delete: if false;
+    }
+    match /bollette_config/{doc} {
+      allow read: if request.auth != null;
+      allow write: if bolletteAdmin();
+    }

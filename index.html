@@ -4,25 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>TIM Bollette</title>
-<meta name="theme-color" content="#003399">
+<meta name="theme-color" content="#0033A1">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
 :root{
-  --blu:#003399; --blu2:#0a5bd3; --blu-chiaro:#e8effc; --rosso:#e2001a;
+  --blu:#0033A1; --blu2:#1a56d6; --blu-chiaro:#eaf0fb; --rosso:#E2001A;
   --verde:#0a8a4a; --verde-chiaro:#e3f5ea; --giallo:#b77400; --giallo-chiaro:#fff4dc;
   --grigio:#5b6475; --linea:#dde3ee; --sfondo:#f4f6fa; --carta:#fff; --testo:#14213d;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--sfondo);color:var(--testo);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{position:sticky;top:0;z-index:20;background:var(--blu);color:#fff;padding:10px 16px calc(10px);display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+header{position:sticky;top:0;z-index:20;background:var(--blu);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:3px solid var(--rosso);box-shadow:0 2px 8px rgba(0,0,0,.15)}
 header h1{font-size:17px;margin:0;font-weight:700;white-space:nowrap}
 header .ver{font-size:11px;opacity:.75;margin-left:2px}
 header .sp{flex:1}
 header button.vista{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer}
 header .ini{font-weight:700;font-size:13px;letter-spacing:.5px}
-nav{position:sticky;top:48px;z-index:19;background:#fff;border-bottom:1px solid var(--linea);display:flex;overflow-x:auto}
+nav{position:sticky;top:51px;z-index:19;background:#fff;border-bottom:1px solid var(--linea);display:flex;overflow-x:auto}
 nav button{flex:1;min-width:84px;background:none;border:0;border-bottom:3px solid transparent;padding:10px 8px;font-size:14px;color:var(--grigio);cursor:pointer;white-space:nowrap}
 nav button.on{color:var(--blu);border-bottom-color:var(--blu);font-weight:600}
 nav button .n{display:inline-block;width:19px;height:19px;border-radius:50%;background:var(--linea);color:var(--grigio);font-size:11px;line-height:19px;margin-right:4px}
@@ -93,6 +93,28 @@ details.ob p{margin:8px 0 0}
 .ed-item input,.ed-item textarea{width:100%;font:14px system-ui,sans-serif;border:1px solid var(--linea);border-radius:8px;padding:7px;margin-bottom:6px}
 .ed-item textarea{min-height:60px}
 .casebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.modale{position:fixed;inset:0;background:rgba(10,20,50,.55);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
+.modale.on{display:flex}
+.mbox{background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:18px;border-top:5px solid var(--rosso)}
+.mbox h2{margin:0 0 10px;color:var(--blu);font-size:18px}
+.banner{background:var(--blu);color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:14px}
+.banner .btn{background:#fff;color:var(--blu);padding:6px 12px;font-size:13px}
+.esito{display:inline-block;padding:4px 10px;border-radius:20px;font-weight:700;font-size:13px;background:#fff;color:var(--blu);margin-bottom:6px}
+.promettente{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+body.modocliente .no-print:not(.sempre),body.modocliente .solo-venditore{display:none!important}
+body.modocliente main{font-size:17px}
+body.modocliente .verdetto .big{font-size:34px}
+body.modocliente .confronto b{font-size:22px}
+.grafico{width:100%;height:auto}
+table.adm{width:100%;border-collapse:collapse;font-size:13px}
+table.adm th{background:var(--blu);color:#fff;text-align:left;padding:6px;font-size:12px;position:sticky;top:0}
+table.adm td{padding:6px;border-bottom:1px solid var(--linea)}
+table.adm td.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.inattivo td{background:#fff4dc}
+.lock{text-align:center;padding:20px}
+.rich{border:1px solid var(--linea);border-radius:10px;padding:10px;margin-bottom:8px}
+.rich.scade{border-color:#f0c56d;background:var(--giallo-chiaro)}
+.rich.fatto{opacity:.55}
 footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 @media print{header,nav,.no-print,footer{display:none!important}.pagina{display:none!important}#p-risultato{display:block!important}main{padding:0}.card{break-inside:avoid}}
 </style>
@@ -101,18 +123,25 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <header>
   <h1>TIM Bollette <span class="ver" id="versione"></span></h1>
   <span class="sp"></span>
+  <button class="vista" id="btnGuida" title="Come si usa">?</button>
   <button class="vista" id="btnVista" title="Cambia visualizzazione">▭ Compatta</button>
-  <span class="ini">J.C.P.</span>
+  <button class="vista" id="btnUtente" title="Utente" style="display:none"></button>
+  <span class="ini" id="iniziali">J.C.P.</span>
 </header>
 <nav id="nav">
   <button data-p="bolletta" class="on"><span class="n">1</span>Bolletta</button>
   <button data-p="cliente"><span class="n">2</span>Cliente</button>
   <button data-p="risultato"><span class="n">3</span>Risultato</button>
+  <button data-p="richiami">⏰ Richiami <span class="chip ko" id="badgeRichiami" style="display:none"></span></button>
   <button data-p="obiezioni">💬 Obiezioni</button>
   <button data-p="contatti">📞 Contatti</button>
   <button data-p="qr">🔳 QR negozio</button>
+  <button data-p="materiali">📁 Materiali</button>
   <button data-p="listino">Listino</button>
+  <button data-p="admin" id="navAdmin" style="display:none">🛡️ Admin</button>
 </nav>
+<div id="bannerVersione"></div>
+<div class="modale" id="modale"><div class="mbox" id="mbox"></div></div>
 <main>
   <div id="avvisoListino"></div>
 
@@ -141,6 +170,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
         <div class="card" id="cardLuce"></div>
         <div class="card" id="cardGas"></div>
       </div>
+      <div id="schedeExtra"></div>
       <details class="card"><summary>Testo letto dalla bolletta (per controllo)</summary><pre class="testo" id="testoLetto"></pre></details>
       <div class="azioni"><button class="btn" data-vai="cliente">Avanti: domande al cliente →</button></div>
     </div>
@@ -150,6 +180,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
   <section class="pagina" id="p-cliente">
     <div class="card">
       <h2>🙋 Domande rapide al cliente</h2>
+      <div class="avviso blu"><b>La domanda che fa vendere: quanto paga oggi internet e cellulare?</b> È lì che TIM recupera la differenza sull'energia (sconto fibra, Mobile + Energia, bonus).</div>
       <p class="small" style="margin-top:0">Servono per cercare tra le offerte TIM la combinazione più vantaggiosa. I risparmi su internet e mobile vengono contati solo se il cliente sostituisce un servizio che già paga.</p>
       <div id="domande"></div>
     </div>
@@ -201,6 +232,10 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 
   <!-- ============ QR NEGOZIO ============ -->
   <section class="pagina" id="p-qr">
+    <div class="card" style="border-color:#7cc59b">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>📲 Invia i QR su WhatsApp</b><br><span class="small">Tutti i QR che l'app sa creare, da inviare uno alla volta o tutti insieme.</span></span>
+      <button class="btn verde" id="btnInviaQR">Invia i QR</button></div>
+    </div>
     <div class="card">
       <h2>🏪 Dati del negozio</h2>
       <p class="small" style="margin-top:0">Servono per tutti i QR (check-up, promemoria, rubrica). Restano salvati su questo dispositivo.</p>
@@ -254,11 +289,40 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
     </div>
   </section>
 
+  <!-- ============ RICHIAMI ============ -->
+  <section class="pagina" id="p-richiami">
+    <div class="card">
+      <h2>⏰ Scadenziario richiami</h2>
+      <p class="small" style="margin-top:0">Clienti che oggi non passano a TIM ma hanno un prezzo in scadenza. Si salvano solo con il <b>consenso del cliente</b> a essere ricontattato. I dati restano su questo dispositivo, cifrati con la tua password.</p>
+      <div id="richiamiBox"></div>
+    </div>
+  </section>
+
+  <!-- ============ MATERIALI ============ -->
+  <section class="pagina" id="p-materiali">
+    <div class="card">
+      <h2>📁 Materiali per il negozio</h2>
+      <p class="small" style="margin-top:0">Locandine A4 sempre aggiornate da stampare. Il QR da incollare si crea nella pagina “QR negozio”.</p>
+      <div class="riga-ct"><b>Locandina “Check-up bolletta”</b><a href="materiali/Locandina-TIM-check-up-bolletta.pdf" target="_blank" rel="noopener">Apri / scarica il PDF</a></div>
+      <div class="riga-ct"><b>Locandina “Recensioni Google”</b><a href="materiali/Locandina-TIM-recensioni-Google.pdf" target="_blank" rel="noopener">Apri / scarica il PDF</a></div>
+      <div id="materialiExtra"></div>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <section class="pagina" id="p-admin">
+    <div id="adminBox"><div class="card"><p>Area riservata all'amministratore.</p></div></div>
+  </section>
+
   <!-- ============ LISTINO ============ -->
   <section class="pagina" id="p-listino">
     <div class="card">
       <h2>🏷️ Listino offerte TIM</h2>
       <p class="small" style="margin-top:0">Prezzi e bonus usati nei calcoli. Aggiornali quando cambiano le offerte: restano salvati su questo dispositivo. Le voci segnate <span class="chip wa">stima</span> non sono pubblicate da TIM: verificale.</p>
+      <div id="listinoLock"></div>
+      <div id="listinoArea">
+      <div class="avviso blu" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px">📄 Arrivata la nuova CTE TIM? Caricala e l'app propone i nuovi prezzi.</span><button class="btn picc" id="btnCTE">Carica CTE (PDF)</button><input type="file" id="cteIn" accept="application/pdf" hidden></div>
+      <div id="cteRisultato"></div>
       <div id="listinoForm"></div>
       <div class="azioni">
         <button class="btn" id="btnSalvaListino">💾 Salva listino</button>
@@ -266,6 +330,8 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
         <button class="btn sec" id="btnImporta">⬆️ Importa</button>
         <button class="btn sec" id="btnReset">Ripristina valori di fabbrica</button>
         <input type="file" id="impIn" accept="application/json" hidden>
+        <button class="btn sec" id="btnPin">🔑 PIN del Listino</button>
+      </div>
       </div>
       <p class="small" id="statoListino"></p>
     </div>
@@ -275,9 +341,10 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 
 <script src="lib/pdfjs/pdf.min.js"></script>
 <script src="lib/qrcode.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v1.3";
+const VERSIONE = "v2.1";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -297,7 +364,7 @@ function fmt(n, dec=2){ if(!isFinite(n)) return '—'; return n.toLocaleString('
 const eur = (n,dec=0) => (isFinite(n)? fmt(n,dec)+' €' : '—');
 function eurS(n,dec=0){ if(!isFinite(n)) return '—'; const s=(n>0?'+':n<0?'−':'')+fmt(Math.abs(n),dec)+' €'; return s; }
 function cls(n){ return n>0.5?'pos':n<-0.5?'neg':''; }
-function oggiISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function oggiISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function dataIT(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
 function parseData(s){
   const m = String(s||'').match(/(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})/); if(!m) return null;
@@ -323,6 +390,9 @@ function vai(p){
   if(p==='obiezioni') renderLista('obiezioni');
   if(p==='contatti'){ renderLista('contatti'); renderLista('interni'); renderContattiBolletta(); renderVCard(false); }
   if(p==='qr') initQR();
+  if(p==='richiami') renderRichiami();
+  if(p==='admin') renderAdmin();
+  if(p==='listino') renderLock();
   window.scrollTo({top:0});
 }
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>vai(b.dataset.p));
@@ -337,7 +407,7 @@ const LISTINO_FABBRICA = {
   mobile:{ nome:'TIM Mobile + Energia (100 GB 5G)', listino:12.99, prezzoDue:9.99, prezzoUna:12.99, sim:10, scadenza:'2026-11-28' },
   pacchetto:{ nome:'Energia + WiFi Casa + TV + Mobile (solo in negozio)', bonusFisso:96, bonusMobile:24, tvMese:0, scadenza:'2026-11-28' },
   contributo:{ importo:60 },
-  venditore:{ scontoMaxMese:0, scontoMesi:12 }
+  venditore:{ scontoMaxMese:0, scontoMesi:12, segnalazioni:'' }
 };
 const LISTINO_CAMPI = [
   ['luce','💡 Luce',[
@@ -360,7 +430,7 @@ const LISTINO_CAMPI = [
     ['nome','Nome','t'],['bonusFisso','Bonus su fattura WiFi Casa + TV (€ totali)','n2'],['bonusMobile','Bonus su fattura Mobile (€ totali)','n2'],
     ['tvMese','Costo TIM TV €/mese (se non incluso)','n2','stima'],['scadenza','Valido fino al','d']]],
   ['contributo','🏛️ Contributo straordinario luce',[['importo','Importo annuo € (ISEE ≤ 25.000 €, residenti)','n2']]],
-  ['venditore','🤝 Sconti del venditore',[['scontoMaxMese','Sconto massimo che puoi concedere €/mese (0 = non previsto)','n2'],['scontoMesi','Per quanti mesi','n0']]]
+  ['venditore','🤝 Sconti del venditore e segnalazioni',[['scontoMaxMese','Sconto massimo che puoi concedere €/mese (0 = non previsto)','n2'],['scontoMesi','Per quanti mesi','n0'],['segnalazioni','Email o WhatsApp per le segnalazioni “bolletta letta male”','t']]]
 ];
 let L;
 function caricaListino(){
@@ -405,7 +475,7 @@ avvisoListino();
 
 /* ===================== LETTURA FILE ===================== */
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdfjs/pdf.worker.min.js';
-let ocrWorker = null;
+let ocrWorker = null; let PDF_ITEMS = []; let PAGINA_N = 0; let CHECKUP_REGISTRATO = false;
 function stato(t, p){ $('#stato').textContent=t; const pr=$('#prog'); if(p==null){ pr.style.display='none'; } else { pr.style.display='block'; pr.firstElementChild.style.width=Math.round(p*100)+'%'; } }
 function caricaScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('Impossibile caricare '+src)); document.head.appendChild(s); }); }
 async function getOCR(){
@@ -425,7 +495,8 @@ async function testoDaPDF(file){
     stato(`Lettura PDF: pagina ${p} di ${pdf.numPages}…`, p/pdf.numPages);
     const page = await pdf.getPage(p); const tc = await page.getTextContent();
     const righe = new Map();
-    for(const it of tc.items){ if(!it.str) continue; const y=Math.round(it.transform[5]/3); if(!righe.has(y)) righe.set(y,[]); righe.get(y).push({x:it.transform[4], s:it.str}); }
+    PAGINA_N++;
+    for(const it of tc.items){ if(!it.str) continue; PDF_ITEMS.push({p:PAGINA_N, x:it.transform[4], y:it.transform[5], w:it.width||0, s:it.str.trim()}); const y=Math.round(it.transform[5]/3); if(!righe.has(y)) righe.set(y,[]); righe.get(y).push({x:it.transform[4], s:it.str}); }
     const ys=[...righe.keys()].sort((a,b)=>b-a);
     for(const y of ys){ const r=righe.get(y).sort((a,b)=>a.x-b.x).map(o=>o.s).join(' ').replace(/\s+/g,' ').trim(); if(r){ out+=r+'\n'; caratteri+=r.length; } }
     out+='\n';
@@ -448,7 +519,7 @@ async function testoDaImmagine(file){
 }
 async function leggiFile(files){
   if(!files || !files.length) return;
-  let testo=''; const pdfTesti=[]; let foto='';
+  let testo=''; const pdfTesti=[]; let foto=''; PDF_ITEMS=[];
   try{
     for(const f of files){
       if(f.type==='application/pdf' || /\.pdf$/i.test(f.name)){ const x=await testoDaPDF(f); pdfTesti.push(x); testo += x + '\n'; }
@@ -467,7 +538,8 @@ async function leggiFile(files){
       if(cand.length) d[k]=cand[0][k];
     }
   }
-  DATI = d; CASE[ATTIVA].dati = d; if(ATTIVA===0) SCONTO={mese:0,mesi:12};
+  try{ leggiGrafici(PDF_ITEMS, d); leggiIndici(testo, d); }catch(e){ console.warn(e); }
+  DATI = d; CASE[ATTIVA].dati = d; CHECKUP_REGISTRATO=false; if(ATTIVA===0) SCONTO={mese:0,mesi:12};
   renderCasebar();
   if(ATTIVA===0 && d.luce.presente && typeof d.luce.residente==='boolean'){ CLIENTE.residente=d.luce.residente; CLIENTE._residenteBolletta=true; renderDomande(); }
   mostraSchede();
@@ -714,6 +786,7 @@ function mostraSchede(manuale){
   $('#schede').style.display='block';
   renderScheda('luce'); renderScheda('gas');
   $('#testoLetto').textContent = testoUltimo || '(nessun testo: inserimento manuale)';
+  if(typeof renderSchedeExtra==='function') renderSchedeExtra();
 }
 document.addEventListener('change', e=>{
   const i=e.target;
@@ -741,6 +814,10 @@ function calcolaFornitura(kind, dd){
   if(!d.presente) return r;
   const giorni = giorniTra(d.dal,d.al);
   let annuo = d.annuo; r.annuoStimato=false;
+  if(!ok(annuo) && Array.isArray(d.storico) && d.storico.length>=12){
+    annuo = d.storico.slice(-12).reduce((s,x)=>s+x.v,0); r.annuoStimato=true;
+    r.note.push(`Consumo annuo non presente in bolletta: ${fmt(annuo,0)} ${U} dalla somma degli ultimi 12 mesi del grafico`);
+  }
   if(!ok(annuo)){
     if(ok(d.qPeriodo) && ok(giorni)){
       annuo = isL ? d.qPeriodo*365/giorni : stimaAnnuoGas(d.qPeriodo, d.dal, d.al);
@@ -795,9 +872,9 @@ function clienteVuoto(){ return { fissoTIM:null, mobileTIM:null, internet:null, 
 let CLIENTE = clienteVuoto();
 const DOMANDE = [
   ['fissoTIM','Ha già la linea di casa (internet/telefono) con TIM?'],
+  ['internet','⭐ Ha internet a casa con un altro operatore? Quanto paga?','costoInternet','€/mese','fissoTIM'],
   ['mobileTIM','Ha già una SIM TIM?'],
-  ['internet','Ha internet a casa con un altro operatore?','costoInternet','€/mese','fissoTIM'],
-  ['sim','Ha una SIM con un altro operatore?','costoSim','€/mese','mobileTIM'],
+  ['sim','⭐ Ha una SIM con un altro operatore? Quanto paga?','costoSim','€/mese','mobileTIM'],
   ['tv','È interessato anche alla TV (pacchetto completo in negozio)?'],
   ['residente','La luce è per l\'abitazione di residenza?'],
   ['isee','Ha un ISEE fino a 25.000 €?']
@@ -912,6 +989,7 @@ function argomenti(S){
   a.push('<b>Cambio senza interruzioni</b>: nessun intervento tecnico, attivazione in 21–70 giorni, il contatore resta lo stesso.');
   a.push('<b>Energia verde</b>: luce 100% da fonti rinnovabili (Garanzie d\'Origine) e gas con emissioni CO₂ compensate.');
   a.push('<b>Tutto in un unico posto</b>: bollette e consumi nell\'app MyTIM, assistenza al numero verde 800.800.187 e in negozio.');
+  a.push('<b>Trasparenza</b>: il cliente può confrontare tutte le offerte sul Portale Offerte ARERA (<a href="https://www.ilportaleofferte.it" target="_blank" rel="noopener">ilportaleofferte.it</a>).');
   if(S.giaCliente) a.push('Il cliente è <b>già TIM</b>: ha diritto al bonus Special e ritrova tutto nella stessa app.');
   return a;
 }
@@ -960,6 +1038,7 @@ function testoWhatsApp(S, lang){
   if(positivo) r.push(tpl(T.totale,{v:eurS(S.tot1)}));
   for(const s of scadenzeCliente(S)) if(s.mesi>=0 && s.mesi<=6){ const f=S.F.find(x=>x.k===s.k); r.push(tpl(T.scad,{k:f?etk(f):T[s.k], d:s.data, m:L.luce.mesiBlocco})); }
   r.push(tpl(T.plus,{m:L.luce.mesiBlocco}));
+  r.push((ARERA_T[lang]||ARERA_T.it)+' https://www.ilportaleofferte.it');
   r.push(positivo ? tpl(T.finePos,{d:dataIT(L.luce.scadenza)}) : T.fineSoft);
   return r.join('\n');
 }
@@ -981,6 +1060,7 @@ function calcolaERender(){
   if(S.errore){ $('#risultato').innerHTML=`<div class="avviso">${esc(S.errore)}</div><button class="btn" data-vai="bolletta">← Torna alla bolletta</button>`; return; }
   const domandeMancanti = CLIENTE.fissoTIM===null || CLIENTE.mobileTIM===null;
   let h='';
+  h+=`<div class="no-print sempre" style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn sec picc" id="btnModoCliente">${document.body.classList.contains('modocliente')?'↩︎ Torna alla vista venditore':'👁️ Mostra al cliente'}</button></div>`;
   if(domandeMancanti) h+=`<div class="avviso no-print">Rispondi alle <a href="#" data-vai="cliente">domande sul cliente</a> per trovare tutte le offerte TIM a cui ha diritto.</div>`;
   if(S.bonusSociale) h+=`<div class="avviso rosso no-print">⚠️ <b>In bolletta compare il bonus sociale.</b> Il bonus sociale è riconosciuto in automatico dallo Stato con qualsiasi fornitore, quindi di norma il cliente non lo perde passando a TIM; il contributo straordinario da ${eur(L.contributo.importo)} invece non spetta. Verifica bene la convenienza${/tutel/i.test(CASE[0].dati.luce.mercato||'')?' e, visto che è in tutela per vulnerabilità, valuta se il cambio è davvero nel suo interesse':''}.</div>`;
   // ---- verdetto
@@ -1000,7 +1080,10 @@ function calcolaERender(){
     else if(gapMese<=15){ titolo='Il cliente ha già una buona offerta'; sotto=`Per pareggiare servono circa ${fmt(gapMese,2)} € al mese (${eur(-S.tot1)} il 1° anno): guarda le leve a tua disposizione qui sotto.`; }
     else { titolo='Offerta attuale molto conveniente sull\'energia'; sotto='Più che sul prezzo, punta su prezzo bloccato, servizi TIM e assistenza in negozio. Guarda qui sotto le leve a tua disposizione.'; }
   }
-  h+=`<div class="verdetto ${cl}"><div class="small" style="color:#fff;opacity:.85">${etich}</div><div class="big">${big}</div><p><b>${esc(titolo)}</b></p><p>${esc(sotto)}</p></div>`;
+  const ES = esitoCliente(S);
+  h+=`<div class="verdetto ${cl}"><span class="esito">${esc(ES.testo)}</span><div class="small" style="color:#fff;opacity:.85">${etich}</div><div class="big">${big}</div><p><b>${esc(titolo)}</b></p><p>${esc(sotto)}</p></div>`;
+  h+=chipsPromettenti(S);
+  h+=htmlCombinazione(S, ES);
   // ---- promemoria ISEE
   if(S.R.luce.ok && !S.bonusSociale){
     const attivo = CLIENTE.isee===true || ISEE_AGGIUNTO;
@@ -1018,7 +1101,8 @@ function calcolaERender(){
     ${info?`<p class="small" style="margin-top:0">${info}</p>`:''}
     ${v?`<div class="confronto"><div>Oggi<b>${eur(v.a,v.dec)}</b><span class="small">${fmt(x.unit,4)} €/${x.U}</span></div><div>TIM<b>${eur(v.b,v.dec)}</b><span class="small">${fmt(x.unitTIM,4)} €/${x.U}</span></div><div>Differenza<b class="${cls(v.d)}">${eurS(v.d,v.dec)}</b><span class="small">${v.suf}</span></div></div>`:'<p class="small">Per questa vista servono consumo e date del periodo.</p>'}
     ${x.note.length?'<p class="small">'+x.note.map(esc).join('<br>')+'</p>':''}
-    ${ok(d.spesaAnnua)?`<p class="small">Spesa annua sostenuta dichiarata in bolletta (tutto compreso): <b>${eur(d.spesaAnnua,2)}</b></p>`:''}</div>`;
+    ${htmlTotaleIVA(f)}
+    ${graficoStorico(d, x.U)}</div>`;
   }
   h+='</div>';
   // ---- e se i prezzi salgono?
@@ -1061,7 +1145,7 @@ function calcolaERender(){
   if(SCONTO.mese>0 && S.tot2<0) hv+=`<div class="avviso">Dal 2° anno, finiti sconto e bonus, la differenza torna a circa <b>${eur(-S.tot2)} l'anno</b> (${eur(-S.tot2/12,2)}/mese).</div>`;
   if(gapBase>0) hv+=`<p>Senza sconti, per pareggiare servono <b>${eur(gapBase)}</b> il 1° anno, cioè circa <b>${eur(gapBase/12,2)} al mese</b>.</p>`;
   else hv+=`<p>Il passaggio conviene già al cliente: uno sconto è un extra per chiudere il contratto.</p>`;
-  const lev = leveVenditore(S);
+  const lev = leveVenditore(S).concat(avvisiPotenza(S));
   if(lev.length) hv+=`<h3>Leve ancora disponibili</h3><ul class="arg">${lev.map(x=>'<li>'+x+'</li>').join('')}</ul>`;
   hv+=`<h3>Simula uno sconto in negozio</h3>
     <div class="campi"><label class="c">Sconto €/mese<input id="scMese" inputmode="decimal" value="${SCONTO.mese?fmt(SCONTO.mese,2):''}" placeholder="0,00"></label>
@@ -1081,7 +1165,7 @@ function calcolaERender(){
   h+=`<div class="card no-print"><h2>📲 Riepilogo da inviare</h2>
    <label class="c" style="max-width:260px;margin-bottom:8px">Lingua del cliente<select id="selLingua">${Object.entries(LINGUE).map(([k,v])=>`<option value="${k}" ${LINGUA===k?'selected':''}>${v.nome}</option>`).join('')}</select></label>
    <textarea id="waTesto" dir="${LINGUA==='ar'?'rtl':'ltr'}">${esc(wa)}</textarea>
-   <div class="azioni"><button class="btn verde" id="btnWA">WhatsApp</button><button class="btn sec" id="btnCopia">Copia testo</button><button class="btn sec" id="btnCondividi">Condividi</button><button class="btn sec" onclick="window.print()">🖨️ Stampa / PDF</button></div>
+   <div class="azioni"><button class="btn verde" id="btnWA">WhatsApp</button><button class="btn sec" id="btnCopia">Copia testo</button><button class="btn sec" id="btnCondividi">Condividi</button><button class="btn sec" id="btnPreventivo">📄 Preventivo PDF</button></div>
    <p class="small">Il testo non contiene dati personali del cliente (nome, POD, PDR).</p></div>`;
   h+=`<p class="small">Offerte del Listino aggiornato al ${dataIT(L.aggiornato)}. Calcolo sulla spesa per la vendita (energia e quota fissa), IVA e imposte escluse: la spesa per la rete e gli oneri generali di sistema è uguale per tutti i fornitori.</p>`;
   $('#risultato').innerHTML=h;
@@ -1098,9 +1182,13 @@ function calcolaERender(){
   if($('#btnApriCasa2')) $('#btnApriCasa2').onclick=()=>{ attivaCasa(1); vai('bolletta'); };
   if($('#btnTogliCasa2')) $('#btnTogliCasa2').onclick=()=>{ CASE.splice(1); attivaCasa(0); calcolaERender(); };
   $('#selLingua').onchange=e=>{ LINGUA=e.target.value; calcolaERender(); setTimeout(()=>$('#waTesto')?.scrollIntoView({block:'center'}),50); };
-  $('#btnWA').onclick=()=>window.open('https://wa.me/?text='+encodeURIComponent($('#waTesto').value),'_blank');
+  $('#btnWA').onclick=()=>{ window.open('https://wa.me/?text='+encodeURIComponent($('#waTesto').value),'_blank'); logEvento('riepilogo',{lingua:LINGUA,canale:'whatsapp'}); };
   $('#btnCopia').onclick=async()=>{ try{ await navigator.clipboard.writeText($('#waTesto').value); $('#btnCopia').textContent='✅ Copiato'; }catch(e){ $('#waTesto').select(); document.execCommand('copy'); } };
-  $('#btnCondividi').onclick=()=>{ if(navigator.share) navigator.share({text:$('#waTesto').value}).catch(()=>{}); else $('#btnCopia').click(); };
+  $('#btnCondividi').onclick=()=>{ if(navigator.share) navigator.share({text:$('#waTesto').value}).catch(()=>{}); else $('#btnCopia').click(); logEvento('riepilogo',{lingua:LINGUA,canale:'condividi'}); };
+  $('#btnPreventivo').onclick=()=>{ preventivoPDF(S, ES); logEvento('preventivo',{}); };
+  $('#btnModoCliente').onclick=()=>{ document.body.classList.toggle('modocliente'); calcolaERender(); window.scrollTo({top:0}); };
+  if($('#btnRichiamoDa')) $('#btnRichiamoDa').onclick=()=>apriNuovoRichiamo(S, ES);
+  registraCheckup(S, ES);
 }
 
 /* ===================== PIÙ CASE ===================== */
@@ -1163,7 +1251,7 @@ function renderLista(k){
   }
   if(!arr.length){ el.innerHTML='<p class="small">Nessuna voce. Tocca “Modifica” per aggiungerne.</p>'; return; }
   el.innerHTML = k==='obiezioni'
-    ? arr.map(it=>`<details class="ob"><summary>${esc(it.t)}</summary><p>${linkifica(riempi(it.r))}</p></details>`).join('')
+    ? arr.map((it,i)=>`<details class="ob"><summary>${esc(it.t)}</summary><p>${linkifica(riempi(it.r))}</p><button class="btn sec picc no-print" data-obinc="${esc(it.t)}" style="margin-top:6px">👍 L'ho incontrata</button></details>`).join('')
     : arr.map(it=>`<div class="riga-ct"><b>${esc(it.t)}</b>${linkifica(riempi(it.r))}</div>`).join('');
 }
 function leggiEditor(k){ const arr=getLista(k); document.querySelectorAll(`[data-ed="${k}"]`).forEach(i=>{ arr[+i.dataset.i][i.dataset.f]=i.value; }); return arr; }
@@ -1180,7 +1268,7 @@ function renderContattiBolletta(){
   CASE.forEach(c=>['luce','gas'].forEach(k=>{ const d=c.dati[k]; if(d.presente && (d.guasti||d.distributore)) righe.push(`<div class="riga-ct"><b>Guasti ${k==='luce'?'luce':'gas'}${CASE.length>1?' – '+esc(c.nome.toLowerCase()):''}${d.distributore?' · '+esc(d.distributore):''}</b>${d.guasti?linkifica('Pronto intervento: '+d.guasti+' (24 ore su 24)'):'Numero di pronto intervento non trovato in bolletta'}</div>`); }));
   el.innerHTML = righe.length ? `<div class="card"><h2>🛠️ Dalla bolletta caricata</h2>${righe.join('')}</div>` : '';
 }
-$('#ctWA').onclick=()=>{
+$('#ctWA').onclick=()=>{ logEvento('contatti',{});
   const r=['Ecco i contatti utili di TIM Energia:'];
   for(const it of getLista('contatti')) r.push(`• ${it.t}: ${riempi(it.r)}`);
   CASE.forEach(c=>['luce','gas'].forEach(k=>{ const d=c.dati[k]; if(d.presente && d.guasti) r.push(`• Guasti ${k}${d.distributore?' ('+d.distributore+')':''}: ${d.guasti}`); }));
@@ -1242,7 +1330,7 @@ $('#qrCrea').onclick=()=>{
   const url=urlCheckup(), vend=$('#qrVend').value.trim();
   disegnaCartello(q.nome, q.num, url, vend);
   canvasSoloQR($('#qrSolo'), url, vend ? 'Check-up bolletta · '+vend : 'Check-up bolletta');
-  $('#qrOut').style.display='block';
+  $('#qrOut').style.display='block'; logEvento('qr',{tipo:'checkup', venditore:!!vend});
   $('#qrInfo').textContent='Il QR apre WhatsApp verso '+q.num+(vend?' con il nome di '+vend:'')+'.';
 };
 // condivisione / download / stampa di un canvas
@@ -1277,7 +1365,7 @@ $('#rvCrea').onclick=()=>{
   let link=$('#rvLink').value.trim(); if(!/^https?:\/\//i.test(link)){ if(!link){ alert('Incolla il link per le recensioni del negozio'); return; } link='https://'+link; }
   const q=negozio(); q.review=link; try{ localStorage.setItem('qrNegozio', JSON.stringify(q)); }catch(e){}
   canvasSoloQR($('#rvCanvas'), link, '★ Lascia una recensione');
-  $('#rvOut').style.display='block';
+  $('#rvOut').style.display='block'; logEvento('qr',{tipo:'recensione'});
 };
 $('#rvStampa').onclick=()=>stampaCanvas($('#rvCanvas'),'8cm');
 $('#rvPng').onclick=()=>scaricaCanvas($('#rvCanvas'), nomeFile('QR-recensione'));
@@ -1298,7 +1386,7 @@ function renderVCard(neg){
   else { canvasSoloQR(cv, VCARD_TIM, 'Salva TIM Energia'); $('#vcInfo').textContent='QR per salvare in rubrica i numeri di TIM Energia.'; $('#vcNegozio').textContent='Mostra QR del negozio'; }
 }
 $('#vcNegozio').onclick=()=>renderVCard(!VC_NEG);
-$('#vcInvia').onclick=async()=>{
+$('#vcInvia').onclick=async()=>{ logEvento('qr',{tipo:'rubrica'});
   const v = VC_NEG ? vcardNegozio() : VCARD_TIM; const nome = VC_NEG ? (negozio().nome||'Negozio') : 'TIM Energia';
   const blob=new Blob([v],{type:'text/vcard'});
   if(await condividiFile(blob, nome.replace(/[^\w]+/g,'-')+'.vcf', 'Salva questo contatto in rubrica')) return;
@@ -1351,7 +1439,7 @@ function attivaPromemoria(S){
   const disegna=()=>{ const ev=testoEvento(S, PROMEMORIA_DATA); canvasSoloQR($('#prCanvas'), ev.qr, 'Promemoria '+PROMEMORIA_DATA.toLocaleDateString('it-IT')); };
   disegna();
   $('#prData').onchange=e=>{ const v=e.target.value; if(v){ const [y,m,d]=v.split('-'); PROMEMORIA_DATA=new Date(+y,+m-1,+d); disegna(); } };
-  $('#prInvia').onclick=async()=>{ const ev=testoEvento(S, PROMEMORIA_DATA); const blob=new Blob([ev.ics],{type:'text/calendar'});
+  $('#prInvia').onclick=async()=>{ logEvento('promemoria',{}); const ev=testoEvento(S, PROMEMORIA_DATA); const blob=new Blob([ev.ics],{type:'text/calendar'});
     if(await condividiFile(blob,'promemoria-bolletta.ics','Promemoria: il prezzo della tua offerta luce e gas sta per scadere')) return;
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='promemoria-bolletta.ics'; a.click(); };
 }
@@ -1359,5 +1447,7 @@ function attivaPromemoria(S){
 /* ===================== OFFLINE ===================== */
 if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
+<script src="js/extra.js"></script>
+<script src="js/cloud.js"></script>
 </body>
 </html>
