@@ -344,7 +344,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v2.1";
+const VERSIONE = "v2.2";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -400,12 +400,14 @@ document.addEventListener('click', e=>{ const t=e.target.closest('[data-vai]'); 
 
 /* ===================== LISTINO ===================== */
 const LISTINO_FABBRICA = {
-  aggiornato: '2026-11-10',
-  luce: { nome:'TIM Energia Luce – prezzo fisso monorario', prezzo:0.189, mesiBlocco:24, comm:140, disp:0.012, pun:0.115, perdite:10.2, bonusMese:4.25, bonusMesi:12, scadenza:'2026-11-16' },
-  gas:  { nome:'TIM Energia Gas – PSV + spread', spread:0.095, mesiBlocco:12, comm:140, psv:0.500, altri:0, bonusMese:4.25, bonusMesi:12, scadenza:'2026-11-16' },
-  wifi: { nome:'TIM WiFi Casa (fibra fino a 2,5 Gbps)', listino:31.90, scontoDue:8, scontoUna:5, attivazione:39.90, scadenza:'2026-11-28' },
-  mobile:{ nome:'TIM Mobile + Energia (100 GB 5G)', listino:12.99, prezzoDue:9.99, prezzoUna:12.99, sim:10, scadenza:'2026-11-28' },
-  pacchetto:{ nome:'Energia + WiFi Casa + TV + Mobile (solo in negozio)', bonusFisso:96, bonusMobile:24, tvMese:0, scadenza:'2026-11-28' },
+  aggiornato: '2026-11-24',
+  luce: { nome:'TIM Energia Luce – prezzo fisso monorario', prezzo:0.199, mesiBlocco:24, comm:140, disp:0.012, pun:0.115, perdite:10.2, bonusMese:4.25, bonusMesi:12, scadenza:'2026-12-17' },
+  gas:  { nome:'TIM Energia Gas – PSV + spread', spread:0.095, mesiBlocco:12, comm:140, psv:0.500, altri:0, bonusMese:4.25, bonusMesi:12, scadenza:'2026-12-17' },
+  wifi: { nome:'TIM WiFi Casa (fibra fino a 2,5 Gbps)', listino:31.90, listinoFWA:29.90, scontoDue:8, scontoUna:5, attivazione:39.90, scadenza:'2026-12-17' },
+  mobile:{ nome:'TIM Mobile Energia (Giga illimitati 5G)', listino:12.99, prezzoDue:9.99, prezzoUna:9.99, sim:9.99, scadenza:'2026-12-17' },
+  pacchetto:{ nome:'Energia + WiFi Casa + TV (+ Mobile)', bonusFisso:96, bonusMobile:24, tvMese:0, scadenza:'2026-12-17' },
+  regole:{ specialCBFisso:true, specialConTV:true, specialWifi:false, specialMobile:false },
+  promo:{ nome:'', bfDue:0, bfUna:0, bfData:'', cbSconto:0, cbMesi:12, scadenza:'' },
   contributo:{ importo:60 },
   venditore:{ scontoMaxMese:0, scontoMesi:12, segnalazioni:'' }
 };
@@ -421,14 +423,17 @@ const LISTINO_CAMPI = [
     ['psv','PSV di riferimento €/Smc (media 12 mesi TIM: 0,5003)','n4','stima'],['altri','Altri corrispettivi materia gas €/Smc','n4','stima'],
     ['scadenza','Offerta valida fino al','d']]],
   ['wifi','🌐 WiFi Casa',[
-    ['nome','Nome offerta','t'],['listino','Prezzo pieno €/mese','n2'],['scontoDue','Sconto con luce + gas €/mese','n2'],['scontoUna','Sconto con una sola fornitura €/mese','n2'],
+    ['nome','Nome offerta','t'],['listino','Prezzo pieno €/mese (fibra FTTx)','n2'],['listinoFWA','Prezzo pieno €/mese (FWA)','n2'],['scontoDue','Sconto con luce + gas €/mese','n2'],['scontoUna','Sconto con una sola fornitura €/mese','n2'],
     ['attivazione','Costo attivazione €','n2'],['scadenza','Offerta valida fino al','d']]],
   ['mobile','📱 Mobile',[
     ['nome','Nome offerta','t'],['listino','Prezzo pieno €/mese','n2'],['prezzoDue','Prezzo con luce + gas €/mese','n2'],['prezzoUna','Prezzo con una sola fornitura €/mese','n2','stima'],
     ['sim','Costo SIM/attivazione in negozio €','n2'],['scadenza','Offerta valida fino al','d']]],
   ['pacchetto','🎁 Pacchetto completo (nuovi clienti, negozio)',[
-    ['nome','Nome','t'],['bonusFisso','Bonus su fattura WiFi Casa + TV (€ totali)','n2'],['bonusMobile','Bonus su fattura Mobile (€ totali)','n2'],
+    ['nome','Nome','t'],['bonusFisso','Sconto TV con WiFi Casa (€ totali 1° anno)','n2'],['bonusMobile','Sconto in più se aggiunge il Mobile (€ totali 1° anno)','n2'],
     ['tvMese','Costo TIM TV €/mese (se non incluso)','n2','stima'],['scadenza','Valido fino al','d']]],
+  ['regole','📏 A chi spetta il bonus Special',[['specialCBFisso','Clienti TIM fisso già attivi','b'],['specialConTV','Nuovi clienti con WiFi Casa + TV','b'],['specialWifi','Nuovi clienti con WiFi Casa senza TV','b'],['specialMobile','Clienti solo mobile (nuovi o già attivi)','b']]],
+  ['promo','🎉 Promo a tempo',[['nome','Nome promo','t'],['bfDue','Bonus per fornitura con 2 forniture (€)','n2'],['bfUna','Bonus con una sola fornitura (€)','n2'],['bfData','Bonus erogato dopo il','d'],
+    ['cbSconto','Sconto TIM Energia per clienti TIM fisso €/mese (sulla fattura della linea fissa)','n2'],['cbMesi','Sconto clienti TIM fisso per (mesi)','n0'],['scadenza','Promo valida fino al','d']]],
   ['contributo','🏛️ Contributo straordinario luce',[['importo','Importo annuo € (ISEE ≤ 25.000 €, residenti)','n2']]],
   ['venditore','🤝 Sconti del venditore e segnalazioni',[['scontoMaxMese','Sconto massimo che puoi concedere €/mese (0 = non previsto)','n2'],['scontoMesi','Per quanti mesi','n0'],['segnalazioni','Email o WhatsApp per le segnalazioni “bolletta letta male”','t']]]
 ];
@@ -446,6 +451,7 @@ function renderListino(){
     h += `<h3 style="display:flex;align-items:center">${tit}${sc?`<span class="scad chip ${scad?'ko':'ok'}">${scad?'scaduta il ':'valida fino al '}${dataIT(sc)}</span>`:''}</h3><div class="campi">`;
     for(const [f,lab,tipo,flag] of campi){
       const v=L[k][f];
+      if(tipo==='b'){ h += `<label class="c">${esc(lab)}<select data-k="${k}" data-f="${f}" data-t="b"><option value="1" ${v?'selected':''}>Sì</option><option value="0" ${v?'':'selected'}>No</option></select></label>`; continue; }
       let val = tipo==='t'||tipo==='d' ? (v??'') : (isFinite(v)? String(v).replace('.',',') : '');
       h += `<label class="c">${esc(lab)} ${flag?'<span class="chip wa">stima</span>':''}
         <input data-k="${k}" data-f="${f}" data-t="${tipo}" type="${tipo==='d'?'date':'text'}" ${tipo[0]==='n'?'inputmode="decimal"':''} value="${esc(val)}"></label>`;
@@ -456,8 +462,8 @@ function renderListino(){
   $('#statoListino').textContent = 'Ultimo aggiornamento: ' + dataIT(L.aggiornato);
 }
 function leggiListinoForm(){
-  document.querySelectorAll('#listinoForm input').forEach(i=>{
-    const {k,f,t}=i.dataset; L[k][f] = (t==='t'||t==='d') ? i.value : parseIT(i.value);
+  document.querySelectorAll('#listinoForm input, #listinoForm select').forEach(i=>{
+    const {k,f,t}=i.dataset; L[k][f] = t==='b' ? i.value==='1' : (t==='t'||t==='d') ? i.value : parseIT(i.value);
   });
   L.aggiornato = oggiISO();
 }
@@ -868,11 +874,12 @@ function calcolaFornitura(kind, dd){
 }
 
 /* ===================== DOMANDE CLIENTE ===================== */
-function clienteVuoto(){ return { fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, tv:null, isee:null, residente:null }; }
+function clienteVuoto(){ return { fwa:null, fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, tv:null, isee:null, residente:null }; }
 let CLIENTE = clienteVuoto();
 const DOMANDE = [
   ['fissoTIM','Ha già la linea di casa (internet/telefono) con TIM?'],
   ['internet','⭐ Ha internet a casa con un altro operatore? Quanto paga?','costoInternet','€/mese','fissoTIM'],
+  ['fwa','La casa è raggiunta solo da FWA (non dalla fibra)?',null,null,'fissoTIM'],
   ['mobileTIM','Ha già una SIM TIM?'],
   ['sim','⭐ Ha una SIM con un altro operatore? Quanto paga?','costoSim','€/mese','mobileTIM'],
   ['tv','È interessato anche alla TV (pacchetto completo in negozio)?'],
@@ -911,42 +918,56 @@ function calcolaScala(){
   const kinds = new Set(F.map(f=>f.k)); const n = kinds.size; const C=CLIENTE;
   const multi = CASE.length>1;
   const etF = f => `${NOMEK[f.k]}${multi?' ('+f.nomeCasa.toLowerCase()+')':''}`;
-  const giaCliente = C.fissoTIM===true || C.mobileTIM===true;
+  const giaFisso = C.fissoTIM===true, giaMobile = C.mobileTIM===true, giaCliente = giaFisso || giaMobile;
+  const RG = L.regole||{}, PR = L.promo||{};
   const bonusSociale = F.some(f=>f.d.bonusSociale);
   const passi=[];
   const energia = F.reduce((s,f)=>s+f.r.diff,0);
   passi.push({id:'energia', tit:`Passaggio ${F.length>1?'delle forniture':'della '+F[0].k} a TIM Energia`, det: F.map(f=>`${etF(f)}: oggi ${eur(f.r.attuale)} → TIM ${eur(f.r.tim)} all'anno`).join(' · ') + (giaCliente?'':' · da sola richiede un prodotto TIM attivo o attivato insieme'), a1:energia, a2:energia, incl:true});
   const bonus = F.reduce((s,f)=>s+f.r.bonus,0);
-  passi.push({id:'bonus', tit:'Bonus TIM Energia Special', det:`${fmt(L.luce.bonusMese,2)} €/mese per ${L.luce.bonusMesi} mesi su ogni fornitura (${F.length} ${F.length>1?'forniture':'fornitura'})`+(giaCliente?' · già cliente TIM: spetta':' · spetta attivando WiFi Casa o Mobile TIM'), a1:bonus, a2:0, incl:giaCliente});
-  const prezzoWifi = L.wifi.listino - (n===2?L.wifi.scontoDue:L.wifi.scontoUna);
+  const fwa = C.fwa===true && ok(L.wifi.listinoFWA);
+  const listinoWifi = fwa ? L.wifi.listinoFWA : L.wifi.listino;
+  const prezzoWifi = listinoWifi - (n===2?L.wifi.scontoDue:L.wifi.scontoUna);
   const prezzoMob = n===2 ? L.mobile.prezzoDue : L.mobile.prezzoUna;
-  if(C.fissoTIM!==true){
+  if(!giaFisso){
     if(C.internet===true && ok(C.costoInternet)){
       const a1=(C.costoInternet-prezzoWifi)*12 - L.wifi.attivazione, a2=(C.costoInternet-prezzoWifi)*12;
-      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`oggi ${eur(C.costoInternet,2)}/mese → TIM ${eur(prezzoWifi,2)}/mese (sconto ${eur(L.wifi.listino-prezzoWifi,0)}/mese con ${n===2?'luce e gas':'una fornitura'}); attivazione ${eur(L.wifi.attivazione,2)}`, a1, a2, incl:a1>0});
+      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`oggi ${eur(C.costoInternet,2)}/mese → TIM ${fwa?'FWA ':''}${eur(prezzoWifi,2)}/mese (sconto ${eur(listinoWifi-prezzoWifi,0)}/mese con ${n===2?'luce e gas':'una fornitura'}); attivazione ${eur(L.wifi.attivazione,2)}`, a1, a2, incl:a1>0});
     } else if(C.internet===true){
       passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`inserisci quanto paga oggi per internet per calcolare il risparmio (TIM: ${eur(prezzoWifi,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
     }
   }
-  if(C.mobileTIM!==true){
+  if(!giaMobile){
     if(C.sim===true && ok(C.costoSim)){
       const a1=(C.costoSim-prezzoMob)*12 - L.mobile.sim, a2=(C.costoSim-prezzoMob)*12;
-      passi.push({id:'mobile', tit:'SIM con TIM Mobile + Energia', det:`oggi ${eur(C.costoSim,2)}/mese → TIM ${eur(prezzoMob,2)}/mese; SIM ${eur(L.mobile.sim,2)}`, a1, a2, incl:a1>0});
+      passi.push({id:'mobile', tit:'SIM con TIM Mobile Energia', det:`oggi ${eur(C.costoSim,2)}/mese → TIM ${eur(prezzoMob,2)}/mese; attivazione ${eur(L.mobile.sim,2)}`, a1, a2, incl:a1>0});
     } else if(C.sim===true){
-      passi.push({id:'mobile', tit:'SIM con TIM Mobile + Energia', det:`inserisci quanto paga oggi per la SIM (TIM: ${eur(prezzoMob,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
+      passi.push({id:'mobile', tit:'SIM con TIM Mobile Energia', det:`inserisci quanto paga oggi per la SIM (TIM: ${eur(prezzoMob,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
     }
   }
-  const pW = passi.find(p=>p.id==='wifi'), pM = passi.find(p=>p.id==='mobile'), pB = passi.find(p=>p.id==='bonus');
-  if(!giaCliente){
-    pB.incl = !!((pW&&pW.incl) || (pM&&pM.incl));
-    if(!pB.incl){
-      const cand = [pW,pM].filter(p=>p && isFinite(p.a1)).sort((a,b)=>b.a1-a.a1)[0];
-      if(cand && cand.a1 + bonus > 0){ cand.incl=true; pB.incl=true; cand.det += ' · conviene anche per sbloccare il bonus Special'; }
-    }
+  const pW = passi.find(p=>p.id==='wifi'), pM = passi.find(p=>p.id==='mobile');
+  // WiFi Casa + TV (eventualmente + Mobile): sconto TV e bonus Special
+  let pTV=null;
+  if(!giaFisso && pW && isFinite(pW.a1)){
+    const conMob = pM && pM.incl; const tv=(L.pacchetto.tvMese||0)*12;
+    pTV={id:'pacchetto', tit:`WiFi Casa + TV${conMob?' + Mobile':''} con TIM Energia`, det:`sconto TV ${eur(L.pacchetto.bonusFisso)}${conMob?' + '+eur(L.pacchetto.bonusMobile)+' con il Mobile':''} il 1° anno`+(tv?` − TV ${eur(L.pacchetto.tvMese,2)}/mese`:' (verifica il costo della TV nel Listino)')+(RG.specialConTV?' · dà diritto al bonus Special':'')+(C.tv===true?'':' · proponilo se interessa la TV'),
+      a1:L.pacchetto.bonusFisso + (conMob?L.pacchetto.bonusMobile:0) - tv, a2:-tv, incl: C.tv===true && pW.incl};
+    passi.push(pTV);
   }
-  if(!giaCliente && pW && pW.incl && pM && pM.incl){
-    const tv = (L.pacchetto.tvMese||0)*12;
-    passi.push({id:'pacchetto', tit:'Pacchetto completo in negozio (Energia + WiFi + TV + Mobile)', det:`bonus ${eur(L.pacchetto.bonusFisso)} su WiFi/TV + ${eur(L.pacchetto.bonusMobile)} su Mobile`+(tv?` − TV ${eur(L.pacchetto.tvMese,2)}/mese`:' (verifica il costo della TV nel Listino)')+(C.tv===true?'':' · proponilo se interessa la TV'), a1:L.pacchetto.bonusFisso + L.pacchetto.bonusMobile - tv, a2:-tv, incl: C.tv===true});
+  // bonus Special: solo dove le regole del Listino lo prevedono
+  const motivi=[];
+  if(giaFisso && RG.specialCBFisso) motivi.push('cliente TIM fisso');
+  if(pTV && pTV.incl && RG.specialConTV) motivi.push('WiFi Casa + TV');
+  if(pW && pW.incl && !(pTV&&pTV.incl) && RG.specialWifi) motivi.push('WiFi Casa');
+  if((giaMobile || (pM&&pM.incl)) && RG.specialMobile) motivi.push('cliente mobile');
+  const doveSpetta=[RG.specialCBFisso&&'clienti TIM fisso già attivi', RG.specialConTV&&'WiFi Casa + TV', RG.specialWifi&&'WiFi Casa', RG.specialMobile&&'clienti mobile'].filter(Boolean).join(', ')||'nessuno';
+  passi.splice(1,0,{id:'bonus', tit:'Bonus TIM Energia Special', det:`${fmt(L.luce.bonusMese,2)} €/mese per ${L.luce.bonusMesi} mesi su ogni fornitura (${F.length} ${F.length>1?'forniture':'fornitura'})`+(motivi.length?' · spetta: '+motivi.join(', '):' · spetta solo a: '+doveSpetta), a1:bonus, a2:0, incl:motivi.length>0});
+  // clienti TIM fisso già attivi: sconto energia e bonus su fattura fissa
+  if(giaFisso && ok(PR.cbSconto)){ const m=PR.cbMesi||12; passi.push({id:'scontocb', tit:'Sconto TIM Energia per clienti TIM fisso', det:`${eur(PR.cbSconto,2)}/mese per ${m} mesi sulla fattura della linea fissa`, a1:PR.cbSconto*Math.min(m,12), a2:PR.cbSconto*Math.max(0,Math.min(m,24)-12), incl:true}); }
+  const promoAttiva = !PR.scadenza || PR.scadenza>=oggiISO();
+  if(promoAttiva && (ok(PR.bfDue)||ok(PR.bfUna))){
+    const due=F.length>=2; const val = due ? PR.bfDue*F.length : PR.bfUna;
+    if(ok(val)) passi.push({id:'blackfriday', tit:PR.nome||'Bonus promo a tempo', det:`${due?eur(PR.bfDue)+' per fornitura ('+F.length+' forniture)':eur(PR.bfUna)+' con una sola fornitura'+(ok(PR.bfDue)?' (con due forniture: '+eur(PR.bfDue)+' ciascuna)':'')}${PR.bfData?', erogato in un\'unica soluzione dopo il '+dataIT(PR.bfData)+' se le forniture restano attive':''}${PR.scadenza?' · sottoscrizioni entro il '+dataIT(PR.scadenza):''}`, a1:0, a2:val, incl:true});
   }
   const contributoPossibile = R.luce.ok && C.residente!==false && !CASE[0].dati.luce.bonusSociale;
   if(contributoPossibile && (C.isee===true || ISEE_AGGIUNTO)){
@@ -990,16 +1011,18 @@ function argomenti(S){
   a.push('<b>Energia verde</b>: luce 100% da fonti rinnovabili (Garanzie d\'Origine) e gas con emissioni CO₂ compensate.');
   a.push('<b>Tutto in un unico posto</b>: bollette e consumi nell\'app MyTIM, assistenza al numero verde 800.800.187 e in negozio.');
   a.push('<b>Trasparenza</b>: il cliente può confrontare tutte le offerte sul Portale Offerte ARERA (<a href="https://www.ilportaleofferte.it" target="_blank" rel="noopener">ilportaleofferte.it</a>).');
-  if(S.giaCliente) a.push('Il cliente è <b>già TIM</b>: ha diritto al bonus Special e ritrova tutto nella stessa app.');
+  if(S.giaCliente) a.push('Il cliente è <b>già TIM</b>: '+(S.passi.find(p=>p.id==='bonus'&&p.incl)?'ha diritto al bonus Special e ':'')+'ritrova tutto nella stessa app.');
+  const bf=S.passi.find(p=>p.id==='blackfriday'); if(bf) a.push(`<b>${esc(bf.tit)}</b>: ${eur(bf.a2)} in più se mantiene attive le forniture (${esc(bf.det)}).`);
   return a;
 }
 
 function leveVenditore(S){
   const C=CLIENTE, lev=[];
   for(const p of S.passi){ if(!p.incl && p.id!=='bonus' && isFinite(p.a1) && p.a1>0) lev.push(`<b>${esc(p.tit)}</b>: ${eurS(p.a1)} il 1° anno — ${esc(p.det)}`); }
-  if(C.fissoTIM!==true && C.internet!==true){ const soglia=S.prezzoWifi + L.wifi.attivazione/12; lev.push(`<b>WiFi Casa</b>: se il cliente ha internet con un altro operatore e paga più di <b>${eur(soglia,2)}/mese</b>, passando a TIM risparmia (TIM ${eur(S.prezzoWifi,2)}/mese) e sblocca il bonus Special.`); }
-  if(C.mobileTIM!==true && C.sim!==true){ const soglia=S.prezzoMob + L.mobile.sim/12; lev.push(`<b>SIM TIM</b>: se paga più di <b>${eur(soglia,2)}/mese</b> per il cellulare, con TIM Mobile + Energia (${eur(S.prezzoMob,2)}/mese) risparmia e sblocca il bonus Special.`); }
-  const pB=S.passi.find(p=>p.id==='bonus'); if(pB && !pB.incl) lev.push(`<b>Bonus Special ${eur(S.bonus)}</b>: si sblocca con un qualsiasi prodotto TIM (WiFi Casa o SIM).`);
+  if(C.fissoTIM!==true && C.internet!==true){ const soglia=S.prezzoWifi + L.wifi.attivazione/12; lev.push(`<b>WiFi Casa</b>: se il cliente ha internet con un altro operatore e paga più di <b>${eur(soglia,2)}/mese</b>, passando a TIM risparmia (TIM ${eur(S.prezzoWifi,2)}/mese)${L.regole&&L.regole.specialConTV?'; con la TV ha anche il bonus Special':''}.`); }
+  if(C.mobileTIM!==true && C.sim!==true){ const soglia=S.prezzoMob + L.mobile.sim/12; lev.push(`<b>SIM TIM</b>: se paga più di <b>${eur(soglia,2)}/mese</b> per il cellulare, con TIM Mobile Energia (${eur(S.prezzoMob,2)}/mese, Giga illimitati) risparmia.`); }
+  const pB=S.passi.find(p=>p.id==='bonus'); if(pB && !pB.incl) lev.push(`<b>Bonus Special ${eur(S.bonus)}</b>: ${esc(pB.det.split(' · ').pop())}.`);
+  const pBF=S.passi.find(p=>p.id==='blackfriday'); if(pBF) lev.push(`<b>${esc(pBF.tit)}</b>: ${eur(pBF.a2)} in più (${esc(pBF.det)}). Ricordalo al cliente: conviene tenere attive le forniture.`);
   if(CASE.length<2) lev.push('<b>Seconda casa</b>: chiedi se ha anche una casa al mare o in montagna. Con il tasto “Aggiungi seconda casa” la confronti e sommi i vantaggi.');
   for(const s of scadenzeCliente(S)){ if(s.mesi>6) lev.push(`Il prezzo ${esc(s.et.toLowerCase())} del cliente è bloccato fino al <b>${esc(s.data)}</b>: se oggi non passa, fissa un richiamo per qualche mese prima della scadenza.`); }
   return lev;
@@ -1026,15 +1049,27 @@ const LINGUE = {
   fr:{nome:'Français', intro:'Bonjour ! Voici la comparaison de votre facture avec les offres TIM Energia :', introSoft:'Bonjour ! Nous avons comparé votre facture avec les offres TIM Energia : votre offre actuelle est déjà intéressante, mais en passant chez TIM vous auriez tout de même des avantages :', luce:'Électricité', gas:'Gaz', casa2:'résidence secondaire', riga:'{k} : aujourd’hui environ {a}/an, avec TIM environ {b}/an (fourniture, hors TVA)', step:'✅ {t} : {v} la première année', totale:'👉 Avantage estimé la première année : {v}', scad:'⏰ Le prix de votre offre actuelle ({k}) expire le {d} : avec TIM le prix de l’électricité reste bloqué {m} mois.', plus:'🔒 Prix de l’électricité bloqué {m} mois · sans engagement ni pénalités · sans frais d’activation · énergie 100 % verte', finePos:'Offres valables pour les contrats signés avant le {d}. À bientôt en boutique !', fineSoft:'Passez en boutique : nous trouverons ensemble la solution la plus adaptée pour vous !',
       passi:{bonus:'Bonus TIM Energia Special', wifi:'Internet à la maison avec TIM WiFi Casa', mobile:'SIM avec TIM Mobile + Energia', pacchetto:'Pack complet (Énergie + WiFi + TV + Mobile)', contributo:'Contribution exceptionnelle électricité (ISEE jusqu’à 25 000 €)', sconto:'Remise réservée en boutique'}}
 };
+const NUOVE_T = {
+  it:{step2:'🎁 {t}: {v} in più dal 2° anno', blackfriday:'Bonus Black Friday', bonusfisso:'Bonus sulla fattura della linea fissa', scontocb:'Sconto TIM Energia per clienti TIM fisso'},
+  en:{step2:'🎁 {t}: {v} extra from the second year', blackfriday:'Black Friday bonus', bonusfisso:'Bonus on your TIM landline bill', scontocb:'TIM Energia discount for TIM landline customers'},
+  ro:{step2:'🎁 {t}: {v} în plus din al doilea an', blackfriday:'Bonus Black Friday', bonusfisso:'Bonus pe factura liniei fixe TIM', scontocb:'Reducere TIM Energia pentru clienții TIM fix'},
+  sq:{step2:'🎁 {t}: {v} më shumë nga viti i dytë', blackfriday:'Bonusi Black Friday', bonusfisso:'Bonus në faturën e linjës fikse TIM', scontocb:'Zbritje TIM Energia për klientët e linjës fikse TIM'},
+  ar:{step2:'🎁 {t}: {v} إضافية ابتداءً من السنة الثانية', blackfriday:'مكافأة الجمعة السوداء', bonusfisso:'مكافأة على فاتورة الخط الأرضي TIM', scontocb:'خصم TIM Energia لعملاء الخط الأرضي TIM'},
+  zh:{step2:'🎁 {t}：第二年起额外 {v}', blackfriday:'黑色星期五奖励', bonusfisso:'TIM 固话账单奖励', scontocb:'TIM 固话客户的 TIM Energia 折扣'},
+  uk:{step2:'🎁 {t}: додатково {v} з другого року', blackfriday:'Бонус Black Friday', bonusfisso:'Бонус на рахунку за стаціонарну лінію TIM', scontocb:'Знижка TIM Energia для клієнтів стаціонарної лінії TIM'},
+  es:{step2:'🎁 {t}: {v} más a partir del segundo año', blackfriday:'Bono Black Friday', bonusfisso:'Bono en la factura de la línea fija TIM', scontocb:'Descuento TIM Energia para clientes de línea fija TIM'},
+  fr:{step2:'🎁 {t} : {v} de plus à partir de la deuxième année', blackfriday:'Bonus Black Friday', bonusfisso:'Bonus sur la facture de la ligne fixe TIM', scontocb:'Remise TIM Energia pour les clients de la ligne fixe TIM'}
+};
+for(const [k,v] of Object.entries(NUOVE_T)){ if(!LINGUE[k]) continue; LINGUE[k].step2=v.step2; Object.assign(LINGUE[k].passi,{blackfriday:v.blackfriday, bonusfisso:v.bonusfisso, scontocb:v.scontocb}); }
 const tpl = (s,o) => s.replace(/\{(\w+)\}/g,(m,k)=>o[k]!==undefined?o[k]:m);
 function testoWhatsApp(S, lang){
   const T = LINGUE[lang]||LINGUE.it; const r=[];
-  const pos=S.passi.filter(p=>p.incl && isFinite(p.a1) && p.a1>0 && p.id!=='energia');
+  const pos=S.passi.filter(p=>p.incl && isFinite(p.a1) && p.id!=='energia' && (p.a1>0 || (p.id==='blackfriday' && p.a2>0)));
   const etk = f => T[f.k] + (f.casa>0 ? ' ('+T.casa2+')' : '');
   const positivo = S.tot1>=5 || (S.tot1>=0 && S.energia>=0);
   r.push(positivo ? T.intro : T.introSoft);
   if(positivo) for(const f of S.F) r.push((f.k==='luce'?'💡 ':'🔥 ')+tpl(T.riga,{k:etk(f), a:eur(f.r.attuale), b:eur(f.r.tim)}));
-  for(const p of pos) r.push(tpl(T.step,{t:T.passi[p.id]||p.tit, v:eurS(p.a1)}));
+  for(const p of pos) r.push(p.a1>0 ? tpl(T.step,{t:T.passi[p.id]||p.tit, v:eurS(p.a1)}) : tpl(T.step2||LINGUE.it.step2,{t:T.passi[p.id]||p.tit, v:eurS(p.a2)}));
   if(positivo) r.push(tpl(T.totale,{v:eurS(S.tot1)}));
   for(const s of scadenzeCliente(S)) if(s.mesi>=0 && s.mesi<=6){ const f=S.F.find(x=>x.k===s.k); r.push(tpl(T.scad,{k:f?etk(f):T[s.k], d:s.data, m:L.luce.mesiBlocco})); }
   r.push(tpl(T.plus,{m:L.luce.mesiBlocco}));
