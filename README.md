@@ -1,4 +1,4 @@
-# TIM Bollette v2.5
+# TIM Bollette v2.6
 
 Web app per i negozi: legge le bollette luce e gas dei clienti e le confronta con le offerte TIM Energia.
 Funziona su Android, Windows e Mac. La bolletta viene letta sul dispositivo: nessun dato dei clienti va in internet.

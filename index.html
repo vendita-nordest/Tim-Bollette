@@ -350,7 +350,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v2.5";
+const VERSIONE = "v2.6";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -880,12 +880,12 @@ function calcolaFornitura(kind, dd){
 }
 
 /* ===================== DOMANDE CLIENTE ===================== */
-function clienteVuoto(){ return { fwa:null, fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, tv:null, isee:null, residente:null }; }
+function clienteVuoto(){ return { connessione:'fibra', fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, tv:null, isee:null, residente:null }; }
 let CLIENTE = clienteVuoto();
 const DOMANDE = [
   ['fissoTIM','Ha già la linea di casa (internet/telefono) con TIM?'],
   ['internet','⭐ Ha internet a casa con un altro operatore? Quanto paga?','costoInternet','€/mese','fissoTIM'],
-  ['fwa','La casa è raggiunta solo da FWA (non dalla fibra)?',null,null,'fissoTIM'],
+  ['connessione','🔎 Che connessione TIM arriva a casa del cliente? <span class="small">(verifica la copertura)</span>',null,null,'fissoTIM'],
   ['mobileTIM','Ha già una SIM TIM?'],
   ['sim','⭐ Ha una SIM con un altro operatore? Quanto paga?','costoSim','€/mese','mobileTIM'],
   ['tv','È interessato anche alla TV (pacchetto completo in negozio)?'],
@@ -896,14 +896,16 @@ function renderDomande(){
   let h='';
   for(const [k,q,kc,u,dip] of DOMANDE){
     if(dip && CLIENTE[dip]===true) continue;
+    if(k==='connessione' && CLIENTE.internet!==true) continue;
     const v=CLIENTE[k];
+    if(k==='connessione'){ h+=`<div class="toggle"><span class="q">${q}</span><span class="seg" data-q="connessione">${[['fibra','Fibra'],['fwa','FWA (antenna)'],['verificare','Da verificare']].map(([x,l])=>`<button data-v="${x}" class="${v===x?'on':''}">${l}</button>`).join('')}</span></div>`; continue; }
     h+=`<div class="toggle"><span class="q">${q}${k==='residente'&&CLIENTE._residenteBolletta?' <span class="chip ok">dalla bolletta</span>':''}</span><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">`;
     if(kc && v===true) h+=`<label class="c" style="flex-direction:row;align-items:center;gap:4px">quanto paga <input class="inline-num" data-cost="${kc}" inputmode="decimal" value="${isFinite(CLIENTE[kc])?fmt(CLIENTE[kc],2):''}"> ${u}</label>`;
     h+=`<span class="seg" data-q="${k}"><button data-v="1" class="${v===true?'on':''}">Sì</button><button data-v="0" class="${v===false?'on':''}">No</button></span></span></div>`;
   }
   $('#domande').innerHTML=h;
 }
-$('#domande').addEventListener('click', e=>{ const b=e.target.closest('.seg button'); if(!b) return; const k=b.parentElement.dataset.q; CLIENTE[k] = b.dataset.v==='1'; renderDomande(); });
+$('#domande').addEventListener('click', e=>{ const b=e.target.closest('.seg button'); if(!b) return; const k=b.parentElement.dataset.q; CLIENTE[k] = k==='connessione' ? b.dataset.v : b.dataset.v==='1'; renderDomande(); });
 $('#domande').addEventListener('input', e=>{ if(e.target.dataset.cost) CLIENTE[e.target.dataset.cost]=parseIT(e.target.value); });
 renderDomande();
 $('#btnCalcola').onclick=()=>vai('risultato');
@@ -931,14 +933,14 @@ function calcolaScala(){
   const energia = F.reduce((s,f)=>s+f.r.diff,0);
   passi.push({id:'energia', tit:`Passaggio ${F.length>1?'delle forniture':'della '+F[0].k} a TIM Energia`, det: F.map(f=>`${etF(f)}: oggi ${eur(f.r.attuale)} → TIM ${eur(f.r.tim)} all'anno`).join(' · ') + (giaCliente?'':' · da sola richiede un prodotto TIM attivo o attivato insieme'), a1:energia, a2:energia, incl:true});
   const bonus = F.reduce((s,f)=>s+f.r.bonus,0);
-  const fwa = C.fwa===true && ok(L.wifi.listinoFWA);
+  const fwa = C.connessione==='fwa' && ok(L.wifi.listinoFWA);
   const listinoWifi = fwa ? L.wifi.listinoFWA : L.wifi.listino;
   const prezzoWifi = listinoWifi - (n===2?L.wifi.scontoDue:L.wifi.scontoUna);
   const prezzoMob = n===2 ? L.mobile.prezzoDue : L.mobile.prezzoUna;
   if(!giaFisso){
     if(C.internet===true && ok(C.costoInternet)){
       const a1=(C.costoInternet-prezzoWifi)*12 - L.wifi.attivazione, a2=(C.costoInternet-prezzoWifi)*12;
-      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`oggi ${eur(C.costoInternet,2)}/mese → TIM ${fwa?'FWA ':''}${eur(prezzoWifi,2)}/mese (sconto ${eur(listinoWifi-prezzoWifi,0)}/mese con ${n===2?'luce e gas':'una fornitura'}); attivazione ${eur(L.wifi.attivazione,2)}`, a1, a2, incl:a1>0});
+      passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`oggi ${eur(C.costoInternet,2)}/mese → TIM ${fwa?'FWA ':''}${eur(prezzoWifi,2)}/mese (sconto ${eur(listinoWifi-prezzoWifi,0)}/mese con ${n===2?'luce e gas':'una fornitura'}); attivazione ${eur(L.wifi.attivazione,2)}${C.connessione==='verificare'?' · ⚠️ verifica la copertura prima di proporla':''}`, a1, a2, incl:a1>0});
     } else if(C.internet===true){
       passi.push({id:'wifi', tit:'Internet di casa con TIM WiFi Casa', det:`inserisci quanto paga oggi per internet per calcolare il risparmio (TIM: ${eur(prezzoWifi,2)}/mese)`, a1:NaN, a2:NaN, incl:false});
     }
