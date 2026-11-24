@@ -344,7 +344,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v2.2";
+const VERSIONE = "v2.3";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -1110,20 +1110,22 @@ function calcolaERender(){
     else { titolo='Con le offerte TIM il cliente ci guadagna'; sotto=`Sull'energia oggi spende un po' meno, ma ${S.sogliaPasso?('con “'+S.sogliaPasso.tit+'”'):'combinando le offerte'} il conto diventa positivo: ${eurS(S.tot1)} il 1° anno.`; }
     if(VISTA==='mese') big = eurS(S.tot1/12,2)+' al mese';
   } else {
-    etich='Differenza da colmare'; big=`${fmt(gapMese,2)} € al mese`;
-    if(gapMese<=5){ titolo='Offerte quasi alla pari'; sotto='L\'offerta attuale del cliente è molto competitiva, ma la differenza è minima: con un piccolo sconto o un servizio TIM in più il passaggio diventa conveniente.'; }
+    etich='Differenza da colmare'; big=`${fmt(Math.ceil(gapMese*100)/100,2)} € al mese`;
+    if(gapMese<=5 || S.tot1+S.tot2>=0){ titolo='Quasi alla pari: chiudi oggi'; sotto=`La differenza è minima: con uno sconto di ${eur(Math.ceil(gapMese*100)/100,2)} al mese il cliente non spende di più${S.tot1+S.tot2>=0?', e nei 2 anni TIM conviene già':''}. In cambio ha il prezzo della luce bloccato ${L.luce.mesiBlocco} mesi e i bonus TIM.`; }
     else if(gapMese<=15){ titolo='Il cliente ha già una buona offerta'; sotto=`Per pareggiare servono circa ${fmt(gapMese,2)} € al mese (${eur(-S.tot1)} il 1° anno): guarda le leve a tua disposizione qui sotto.`; }
     else { titolo='Offerta attuale molto conveniente sull\'energia'; sotto='Più che sul prezzo, punta su prezzo bloccato, servizi TIM e assistenza in negozio. Guarda qui sotto le leve a tua disposizione.'; }
   }
   const ES = esitoCliente(S);
-  h+=`<div class="verdetto ${cl}"><span class="esito">${esc(ES.testo)}</span><div class="small" style="color:#fff;opacity:.85">${etich}</div><div class="big">${big}</div><p><b>${esc(titolo)}</b></p><p>${esc(sotto)}</p></div>`;
+  const fineBlocco = new Date(); fineBlocco.setMonth(fineBlocco.getMonth()+L.luce.mesiBlocco);
+  const dueAnni = `<div class="confronto" style="margin-top:10px"><div style="background:rgba(255,255,255,.15)">1° anno<b>${eurS(S.tot1)}</b></div><div style="background:rgba(255,255,255,.15)">2° anno<b>${eurS(S.tot2)}</b></div><div style="background:rgba(255,255,255,.22)">In 2 anni<b>${eurS(S.tot1+S.tot2)}</b></div></div>${S.R.luce.ok?`<p class="small" style="color:#fff;opacity:.9;margin-top:6px">🔒 Prezzo della luce TIM bloccato fino a ${fineBlocco.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</p>`:''}`;
+  h+=`<div class="verdetto ${cl}"><span class="esito">${esc(ES.testo)}</span><div class="small" style="color:#fff;opacity:.85">${etich}</div><div class="big">${big}</div><p><b>${esc(titolo)}</b></p><p>${esc(sotto)}</p>${dueAnni}</div>`;
   h+=chipsPromettenti(S);
   h+=htmlCombinazione(S, ES);
   // ---- promemoria ISEE
   if(S.R.luce.ok && !S.bonusSociale){
     const attivo = CLIENTE.isee===true || ISEE_AGGIUNTO;
     h+=`<div class="avviso blu no-print" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px">💶 <b>Il cliente ha un ISEE fino a 25.000 €?</b> Con la luce TIM ha diritto al contributo straordinario fino a <b>${eur(L.contributo.importo)} l'anno</b> (2026 e 2027), in automatico in bolletta${CLIENTE.residente===false?' — <b>solo per l\'abitazione di residenza</b>':''}.</span>
-      ${S.contributoPossibile?`<button class="btn ${attivo?'sec':'verde'} picc" id="btnIsee">${attivo?'Togli contributo ISEE':'Aggiungi contributo ISEE (+'+eur(L.contributo.importo)+')'}</button>`:''}</div>`;
+      ${S.contributoPossibile?`<button class="btn ${attivo?'':'verde'} picc" id="btnIsee" style="${attivo?'background:#fff;color:var(--blu);border:2px solid var(--blu)':''}">${attivo?'✓ Contributo incluso · togli':'➕ Aggiungi contributo ISEE (+'+eur(L.contributo.importo)+')'}</button>`:''}</div>`;
   }
   // ---- vista
   h+=`<div class="no-print" style="display:flex;justify-content:center;margin-bottom:12px"><span class="seg" id="segVista">${[['anno','All\'anno'],['mese','Al mese'],['bolletta','Su questa bolletta']].map(([v,l])=>`<button data-v="${v}" class="${VISTA===v?'on':''}">${l}</button>`).join('')}</span></div>`;
@@ -1223,6 +1225,8 @@ function calcolaERender(){
   $('#btnPreventivo').onclick=()=>{ preventivoPDF(S, ES); logEvento('preventivo',{}); };
   $('#btnModoCliente').onclick=()=>{ document.body.classList.toggle('modocliente'); calcolaERender(); window.scrollTo({top:0}); };
   if($('#btnRichiamoDa')) $('#btnRichiamoDa').onclick=()=>apriNuovoRichiamo(S, ES);
+  if($('#btnScontoPari')) $('#btnScontoPari').onclick=()=>{ SCONTO.mese=ES.sconto; SCONTO.mesi=12; logEvento('sconto',{valore:ES.sconto}); calcolaERender(); };
+  if($('#btnCopiaFrase')) $('#btnCopiaFrase').onclick=async()=>{ const t=$('#btnCopiaFrase').closest('.card').querySelector('p').innerText.replace(/^“|”$/g,''); try{ await navigator.clipboard.writeText(t); $('#btnCopiaFrase').textContent='✅ Copiata'; }catch(e){} };
   registraCheckup(S, ES);
 }
 

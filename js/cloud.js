@@ -84,7 +84,7 @@ Cloud.salvaPin = (h)=>{ if(!Cloud.isAdmin) return; Cloud.db.collection(COL.confi
 
 /* ===================== AREA AMMINISTRATORE ===================== */
 let ADM = { giorni:30, eventi:[], utenti:[] };
-const ETICH = { checkup:'Check-up', subito:'Subito', pacchetto:'Con pacchetto', nonora:'Non ora', riepilogo:'Riepiloghi', preventivo:'Preventivi', qr:'QR', promemoria:'Promemoria', richiamo:'Richiami', obiezione:'Obiezioni', contatti:'Contatti inviati', segnalazione:'Segnalazioni', accesso:'Accessi' };
+const ETICH = { checkup:'Check-up', subito:'Subito', pacchetto:'Con pacchetto', pari:'Quasi pari', nonora:'Non ora', riepilogo:'Riepiloghi', preventivo:'Preventivi', qr:'QR', promemoria:'Promemoria', richiamo:'Richiami', obiezione:'Obiezioni', contatti:'Contatti inviati', segnalazione:'Segnalazioni', accesso:'Accessi' };
 async function renderAdmin(){
   const box=$('#adminBox');
   if(!window.FIREBASE_CONFIG){ box.innerHTML=`<div class="card"><h2>🛡️ Area Amministratore</h2><p>Per vedere chi usa l'app serve collegarla a Firebase: apri il file <b>firebase-config.js</b> nel repository e incolla la configurazione del progetto (le istruzioni sono nel README).</p></div>`; return; }
@@ -103,14 +103,14 @@ async function renderAdmin(){
 }
 function aggrega(eventi, chiave){
   const m={};
-  for(const e of eventi){ const k=chiave(e); if(!k) continue; const r=m[k]=m[k]||{chiave:k, insegna:e.insegna||'', checkup:0, subito:0, pacchetto:0, nonora:0, riepilogo:0, preventivo:0, qr:0, promemoria:0, richiamo:0, obiezione:0, quizN:0, quizOk:0, ultimo:null, vantaggio:0};
+  for(const e of eventi){ const k=chiave(e); if(!k) continue; const r=m[k]=m[k]||{chiave:k, insegna:e.insegna||'', checkup:0, subito:0, pacchetto:0, pari:0, nonora:0, riepilogo:0, preventivo:0, qr:0, promemoria:0, richiamo:0, obiezione:0, quizN:0, quizOk:0, ultimo:null, vantaggio:0};
     if(e.tipo==='checkup'){ r.checkup++; if(e.dati&&e.dati.esito) r[e.dati.esito]=(r[e.dati.esito]||0)+1; if(e.dati&&isFinite(e.dati.vantaggio)) r.vantaggio+=e.dati.vantaggio; }
     else if(e.tipo==='quiz'){ r.quizN++; r.quizOk+=(e.dati&&e.dati.giusti)||0; }
     else if(r[e.tipo]!==undefined) r[e.tipo]++;
     if(e.tipo!=='accesso' && e.tipo!=='uscita' && (!r.ultimo || e.data>r.ultimo)) r.ultimo=e.data; }
   return Object.values(m).sort((a,b)=>b.checkup-a.checkup);
 }
-const COLS=['checkup','subito','pacchetto','nonora','riepilogo','preventivo','qr','promemoria','richiamo','obiezione'];
+const COLS=['checkup','subito','pacchetto','pari','nonora','riepilogo','preventivo','qr','promemoria','richiamo','obiezione'];
 function tabella(righe, primaCol, conInsegna){
   const oggi=new Date(); const lim=new Date(); lim.setDate(lim.getDate()-7);
   let h=`<div style="overflow-x:auto;max-height:420px"><table class="adm"><thead><tr><th>${primaCol}</th>${conInsegna?'<th>Insegna</th>':''}${COLS.map(c=>`<th style="text-align:right">${ETICH[c]}</th>`).join('')}<th style="text-align:right">Quiz</th><th>Ultimo uso</th></tr></thead><tbody>`;
@@ -135,10 +135,10 @@ function disegnaAdmin(){
   const conta=(arr)=>{ const m={}; arr.forEach(x=>{ if(x) m[x]=(m[x]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]); };
   const obiez=conta(ev.filter(e=>e.tipo==='obiezione').map(e=>e.dati&&e.dati.titolo));
   const forn=conta(ev.filter(e=>e.tipo==='checkup').flatMap(e=>(e.dati&&e.dati.fornitori)||[]));
-  const tot=perNeg.reduce((a,r)=>({c:a.c+(r.checkup||0), s:a.s+(r.subito||0), p:a.p+(r.pacchetto||0), n:a.n+(r.nonora||0)}),{c:0,s:0,p:0,n:0});
+  const tot=perNeg.reduce((a,r)=>({c:a.c+(r.checkup||0), s:a.s+(r.subito||0), p:a.p+(r.pacchetto||0), q:a.q+(r.pari||0), n:a.n+(r.nonora||0)}),{c:0,s:0,p:0,q:0,n:0});
   let h=`<div class="card"><h2>🛡️ Area Amministratore</h2>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">Periodo: <span class="seg" id="admGiorni">${[7,30,90].map(g=>`<button data-g="${g}" class="${ADM.giorni===g?'on':''}">${g} giorni</button>`).join('')}</span><button class="btn sec picc" id="admAggiorna">↻ Aggiorna</button></div>
-    <div class="confronto" style="margin-top:12px"><div>Check-up<b>${tot.c}</b></div><div>Convenienti<b class="pos">${tot.s+tot.p}</b><span class="small">${tot.s} subito · ${tot.p} con pacchetto</span></div><div>Non ora<b>${tot.n}</b><span class="small">da richiamare</span></div></div></div>`;
+    <div class="confronto" style="margin-top:12px"><div>Check-up<b>${tot.c}</b></div><div>Convenienti<b class="pos">${tot.s+tot.p}</b><span class="small">${tot.s} subito · ${tot.p} con pacchetto</span></div><div>Quasi pari / Non ora<b>${tot.q} / ${tot.n}</b><span class="small">da chiudere / da richiamare</span></div></div></div>`;
   h+=`<div class="card"><h2>🔔 Avvisi</h2>${inattivi.length?`<p>⚠️ <b>Negozi senza attività da almeno 7 giorni:</b> ${inattivi.map(esc).join(', ')}</p>`:'<p>Tutti i negozi hanno usato l\'app negli ultimi 7 giorni.</p>'}${variazioni.length?'<ul class="arg">'+variazioni.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>':''}</div>`;
   h+=`<div class="card"><h2>🏪 Report per negozio <span class="small" style="font-weight:400">(si può inviare)</span></h2>${tabella(perNeg,'Negozio',true)}
     <div class="azioni"><button class="btn picc" id="admXlsNeg">⬇️ Excel</button><button class="btn sec picc" id="admInviaNeg">Invia</button><button class="btn verde picc" id="admClassifica">🏆 Classifica settimanale per insegna (WhatsApp)</button></div></div>`;
@@ -174,7 +174,7 @@ async function creaVenditore(){
   }catch(e){ $('#nuMsg').textContent='Errore: '+e.message; }
 }
 function righeExport(perNeg){
-  return perNeg.map(r=>({Negozio:r.chiave, Insegna:r.insegna||'', 'Check-up':r.checkup||0, 'Convengono subito':r.subito||0, 'Con pacchetto':r.pacchetto||0, 'Non ora':r.nonora||0, Riepiloghi:r.riepilogo||0, Preventivi:r.preventivo||0, QR:r.qr||0, Promemoria:r.promemoria||0, Richiami:r.richiamo||0, 'Ultimo uso':r.ultimo?r.ultimo.toLocaleDateString('it-IT'):'mai'}));
+  return perNeg.map(r=>({Negozio:r.chiave, Insegna:r.insegna||'', 'Check-up':r.checkup||0, 'Convengono subito':r.subito||0, 'Con pacchetto':r.pacchetto||0, 'Quasi pari':r.pari||0, 'Non ora':r.nonora||0, Riepiloghi:r.riepilogo||0, Preventivi:r.preventivo||0, QR:r.qr||0, Promemoria:r.promemoria||0, Richiami:r.richiamo||0, 'Ultimo uso':r.ultimo?r.ultimo.toLocaleDateString('it-IT'):'mai'}));
 }
 async function esportaNegozi(perNeg, invia){
   if(!window.XLSX) await caricaScript('lib/xlsx.full.min.js');

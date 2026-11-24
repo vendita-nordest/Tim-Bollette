@@ -194,7 +194,9 @@ function avvisiPotenza(S){
 /* ---------- esiti, cliente promettente, combinazione consigliata ---------- */
 function esitoCliente(S){
   if(S.tot1>=0 && S.energia>=0) return {k:'subito', testo:'✅ Conviene subito'};
-  if(S.tot1>=0) return {k:'pacchetto', testo:'🧩 Conviene con il pacchetto TIM'};
+  if(S.tot1>=0) return {k:'pacchetto', testo: (SCONTO.mese>0 && S.base1<0) ? '✅ Conviene con lo sconto in negozio' : '🧩 Conviene con il pacchetto TIM'};
+  const gap=-S.tot1/12;
+  if(gap<=5 || S.tot1+S.tot2>=0) return {k:'pari', testo:'🤝 Quasi alla pari: chiudi oggi', sconto:Math.ceil(gap*100)/100};
   const sc=scadenzeCliente(S).filter(s=>s.mesi>=0).sort((a,b)=>parseData(a.data)-parseData(b.data))[0];
   let data = sc ? promemoriaDefault(sc.data) : null;
   if(!data){ data=new Date(); data.setMonth(data.getMonth()+3); }
@@ -216,12 +218,35 @@ function chipsPromettenti(S){
 }
 function htmlCombinazione(S, ES){
   const inc=S.passi.filter(p=>p.incl && isFinite(p.a1));
-  let h=`<div class="card"><h2>🧩 Combinazione TIM consigliata</h2><ul class="arg">${inc.map(p=>`<li><b>${esc(p.tit)}</b> <span class="${cls(p.a1)}">${eurS(p.a1)}</span> il 1° anno</li>`).join('')}</ul>`;
-  if(ES.k==='nonora') h+=`<p>Oggi il passaggio non conviene al cliente. Proponi di risentirvi <b>${ES.data.toLocaleDateString('it-IT')}</b>${scadenzeCliente(S).length?', prima che scada il suo prezzo':''}.</p><div class="azioni no-print"><button class="btn picc" id="btnRichiamoDa">⏰ Aggiungi ai Richiami</button></div>`;
+  const vant=inc.filter(p=>p.id!=='energia' && (p.a1>0 || (p.a2||0)>0));
+  const en=inc.find(p=>p.id==='energia');
+  const riga=p=> p.a1>0 ? `<li><b>${esc(p.tit)}</b> <span class="pos">${eurS(p.a1)}</span> il 1° anno${(p.a2||0)>0?` e <span class="pos">${eurS(p.a2)}</span> il 2° anno`:''}</li>`
+                        : `<li><b>${esc(p.tit)}</b> <span class="pos">${eurS(p.a2)}</span> nel 2° anno</li>`;
+  let h=`<div class="card"><h2>🧩 Combinazione TIM consigliata</h2>`;
+  if(vant.length) h+=`<p class="small" style="margin:0 0 4px"><b>Vantaggi TIM</b></p><ul class="arg">${vant.map(riga).join('')}</ul>`;
+  if(en) h+=`<p class="small" style="margin:8px 0 4px"><b>Prezzo dell'energia</b></p><ul class="arg"><li>${en.a1>=0?`Con TIM l'energia costa <span class="pos">${eur(en.a1)} in meno</span> all'anno`:`Con TIM l'energia costa ${eur(-en.a1)} in più all'anno`}${S.R.luce.ok?`, con il prezzo della luce bloccato ${L.luce.mesiBlocco} mesi`:''}</li></ul>`;
+  h+=`<table class="scala" style="margin-top:8px"><tr class="tot"><td>Totale per il cliente</td><td class="n ${cls(S.tot1)}">1° anno ${eurS(S.tot1)}</td><td class="n ${cls(S.tot1+S.tot2)}">in 2 anni ${eurS(S.tot1+S.tot2)}</td></tr></table>`;
+  if(ES.k==='nonora') h+=`<p>Oggi il passaggio non conviene al cliente. Proponi di risentirvi il <b>${ES.data.toLocaleDateString('it-IT')}</b>${scadenzeCliente(S).length?', prima che scada il suo prezzo':''}.</p><div class="azioni no-print"><button class="btn picc" id="btnRichiamoDa">⏰ Aggiungi ai Richiami</button></div>`;
+  else if(ES.k==='pari') h+=`<p>La differenza è di ${eur(ES.sconto,2)} al mese il 1° anno${S.tot1+S.tot2>=0?' e si recupera nel 2° anno':''}.</p><div class="azioni no-print"><button class="btn verde picc" id="btnScontoPari">Applica uno sconto di ${eur(ES.sconto,2)}/mese per 12 mesi</button><button class="btn sec picc" id="btnRichiamoDa">⏰ Oppure aggiungi ai Richiami</button></div>`;
   else if(ES.k==='pacchetto') h+=`<p class="small">Sull'energia da sola il cliente spende un po' di più: la convenienza arriva unendo i servizi TIM della lista.</p>`;
-  return h+'</div>';
+  return h+'</div>'+htmlCosaDire(S, ES);
 }
-
+function htmlCosaDire(S, ES){
+  const pBF=S.passi.find(p=>p.id==='blackfriday'), pIs=S.passi.find(p=>p.id==='contributo');
+  const plus=[]; if(S.R.luce.ok) plus.push(`il prezzo della luce bloccato per ${L.luce.mesiBlocco===24?'2 anni':L.luce.mesiBlocco+' mesi'}`);
+  const pB=S.passi.find(p=>p.id==='bonus'&&p.incl); if(pB) plus.push(`il bonus Special di ${eur(pB.a1)} il primo anno`);
+  const pCB=S.passi.find(p=>p.id==='scontocb'&&p.incl); if(pCB) plus.push(`${eur(pCB.a1)} di sconto sulla linea fissa`);
+  if(pBF) plus.push(`${eur(pBF.a2)} di bonus ${pBF.tit.replace(/^Bonus\s*/i,'')} nel secondo anno`);
+  if(pIs) plus.push(`il contributo di ${eur(pIs.a1)} l'anno`);
+  const elenco = plus.length>1 ? plus.slice(0,-1).join(', ')+' e '+plus[plus.length-1] : (plus[0]||'');
+  const promo = (L.promo&&L.promo.scadenza&&L.promo.scadenza>=oggiISO()) ? ` Se lo attiviamo oggi, entro il ${dataIT(L.promo.scadenza)}, rientra nella promo.` : (L.luce.scadenza>=oggiISO()?` Le condizioni valgono per chi attiva entro il ${dataIT(L.luce.scadenza)}.`:'');
+  let t='';
+  if(ES.k==='subito') t=`Con TIM risparmia circa ${eur(S.tot1)} il primo anno (${eur(S.tot1+S.tot2)} in 2 anni) e in più ha ${elenco}.${promo}`;
+  else if(ES.k==='pacchetto') t=`Mettendo insieme luce e gas con i servizi TIM risparmia circa ${eur(S.tot1)} il primo anno, e ha ${elenco}.${promo}`;
+  else if(ES.k==='pari') t=`La differenza con la sua offerta attuale è di meno di ${eur(Math.ceil(ES.sconto),0)} al mese. In cambio ha ${elenco}${S.tot1+S.tot2>=0?`: nei due anni ci guadagna ${eur(S.tot1+S.tot2)}`:''}.${promo}`;
+  else t=`Oggi la sua offerta è più conveniente e non le consiglio di cambiare. Se vuole, la richiamo il ${ES.data.toLocaleDateString('it-IT')}, prima che scada il suo prezzo, e rifacciamo il confronto.`;
+  return `<div class="card no-print" style="border-color:#7cc59b"><h2>🗣️ Cosa dire al cliente</h2><p style="font-size:16px;line-height:1.45">“${esc(t)}”</p><div class="azioni"><button class="btn sec picc" id="btnCopiaFrase">Copia la frase</button></div></div>`;
+}
 /* ---------- bolletta completa IVA inclusa ---------- */
 function aliquotaIVA(f){ if(f.k==='luce') return 0.10; const a=f.r.annuo||0; return a<=480 ? 0.10 : (480*0.10+(a-480)*0.22)/a; }
 function htmlTotaleIVA(f){
