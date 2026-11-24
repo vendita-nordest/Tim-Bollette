@@ -350,7 +350,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v2.6";
+const VERSIONE = "v2.7";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -436,7 +436,7 @@ const LISTINO_CAMPI = [
     ['sim','Costo SIM/attivazione in negozio €','n2'],['scadenza','Offerta valida fino al','d']]],
   ['pacchetto','🎁 Pacchetto completo (nuovi clienti, negozio)',[
     ['nome','Nome','t'],['bonusFisso','Sconto TV con WiFi Casa (€ totali 1° anno)','n2'],['bonusMobile','Sconto in più se aggiunge il Mobile (€ totali 1° anno)','n2'],
-    ['tvMese','Costo TIM TV €/mese (se non incluso)','n2','stima'],['scadenza','Valido fino al','d']]],
+    ['tvMese','Prezzo pieno di TIM TV €/mese (obbligatorio per contare lo sconto TV)','n2'],['scadenza','Valido fino al','d']]],
   ['regole','📏 A chi spetta il bonus Special',[['specialCBFisso','Clienti TIM fisso già attivi','b'],['specialConTV','Nuovi clienti con WiFi Casa + TV','b'],['specialWifi','Nuovi clienti con WiFi Casa senza TV','b'],['specialMobile','Clienti solo mobile (nuovi o già attivi)','b']]],
   ['promo','🎉 Promo a tempo',[['nome','Nome promo','t'],['bfDue','Bonus per fornitura con 2 forniture (€)','n2'],['bfUna','Bonus con una sola fornitura (€)','n2'],['bfData','Bonus erogato dopo il','d'],
     ['cbSconto','Sconto TIM Energia per clienti TIM fisso €/mese (sulla fattura della linea fissa)','n2'],['cbMesi','Sconto clienti TIM fisso per (mesi)','n0'],['scadenza','Promo valida fino al','d']]],
@@ -880,7 +880,7 @@ function calcolaFornitura(kind, dd){
 }
 
 /* ===================== DOMANDE CLIENTE ===================== */
-function clienteVuoto(){ return { connessione:'fibra', fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, tv:null, isee:null, residente:null }; }
+function clienteVuoto(){ return { connessione:'fibra', fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, tvPaga:null, costoTV:NaN, tv:null, isee:null, residente:null }; }
 let CLIENTE = clienteVuoto();
 const DOMANDE = [
   ['fissoTIM','Ha già la linea di casa (internet/telefono) con TIM?'],
@@ -888,7 +888,8 @@ const DOMANDE = [
   ['connessione','🔎 Che connessione TIM arriva a casa del cliente? <span class="small">(verifica la copertura)</span>',null,null,'fissoTIM'],
   ['mobileTIM','Ha già una SIM TIM?'],
   ['sim','⭐ Ha una SIM con un altro operatore? Quanto paga?','costoSim','€/mese','mobileTIM'],
-  ['tv','È interessato anche alla TV (pacchetto completo in negozio)?'],
+  ['tvPaga','Paga già TV o streaming (Sky, Netflix, DAZN…)? Quanto in tutto?','costoTV','€/mese'],
+  ['tv','È interessato a TIM TV?'],
   ['residente','La luce è per l\'abitazione di residenza?'],
   ['isee','Ha un ISEE fino a 25.000 €?']
 ];
@@ -957,9 +958,17 @@ function calcolaScala(){
   // WiFi Casa + TV (eventualmente + Mobile): sconto TV e bonus Special
   let pTV=null;
   if(!giaFisso && pW && isFinite(pW.a1)){
-    const conMob = pM && pM.incl; const tv=(L.pacchetto.tvMese||0)*12;
-    pTV={id:'pacchetto', tit:`WiFi Casa + TV${conMob?' + Mobile':''} con TIM Energia`, det:`sconto TV ${eur(L.pacchetto.bonusFisso)}${conMob?' + '+eur(L.pacchetto.bonusMobile)+' con il Mobile':''} il 1° anno`+(tv?` − TV ${eur(L.pacchetto.tvMese,2)}/mese`:' (verifica il costo della TV nel Listino)')+(RG.specialConTV?' · dà diritto al bonus Special':'')+(C.tv===true?'':' · proponilo se interessa la TV'),
-      a1:L.pacchetto.bonusFisso + (conMob?L.pacchetto.bonusMobile:0) - tv, a2:-tv, incl: C.tv===true && pW.incl};
+    const conMob = pM && pM.incl;
+    const tvMese = L.pacchetto.tvMese||0;                                   // prezzo pieno di TIM TV
+    const oggiTV = (C.tvPaga===true && ok(C.costoTV)) ? C.costoTV : 0;      // quanto paga oggi per TV/streaming
+    const sconto = L.pacchetto.bonusFisso + (conMob?L.pacchetto.bonusMobile:0);
+    if(!ok(tvMese)){
+      pTV={id:'pacchetto', tit:`WiFi Casa + TV${conMob?' + Mobile':''} con TIM Energia`, det:`⚠️ inserisci nel Listino il prezzo di TIM TV (sezione “Pacchetto”): senza il costo della TV lo sconto di ${eur(sconto)} non si può contare`, a1:NaN, a2:NaN, incl:false};
+    } else {
+      const a1 = (oggiTV - tvMese)*12 + sconto, a2 = (oggiTV - tvMese)*12;
+      pTV={id:'pacchetto', tit:`WiFi Casa + TV${conMob?' + Mobile':''} con TIM Energia`, det:`TIM TV ${eur(tvMese,2)}/mese${oggiTV?` al posto di ${eur(oggiTV,2)}/mese che paga oggi`:' (oggi non paga TV: è una spesa in più)'} · sconto TV ${eur(sconto)} il 1° anno`+(RG.specialConTV?' · dà diritto al bonus Special':'')+(C.tv===true?'':' · proponilo se interessa la TV'),
+        a1, a2, incl: C.tv===true && pW.incl && (a1 + a2 + (RG.specialConTV?bonus:0)) > 0};   // conviene sui 2 anni, non solo il primo
+    }
     passi.push(pTV);
   }
   // bonus Special: solo dove le regole del Listino lo prevedono
