@@ -115,6 +115,10 @@ tr.inattivo td{background:#fff4dc}
 .rich{border:1px solid var(--linea);border-radius:10px;padding:10px;margin-bottom:8px}
 .rich.scade{border-color:#f0c56d;background:var(--giallo-chiaro)}
 .rich.fatto{opacity:.55}
+.schermo-blocco{position:fixed;inset:0;z-index:100;background:linear-gradient(160deg,#0033A1,#1a56d6);display:none;align-items:center;justify-content:center;padding:16px}
+.schermo-blocco.on{display:flex}
+.schermo-blocco .bbox{background:#fff;border-radius:18px;padding:24px;max-width:360px;width:100%;text-align:center;border-top:5px solid var(--rosso)}
+.schermo-blocco input{font-size:22px;letter-spacing:6px;text-align:center;width:180px;padding:8px;border:1px solid var(--linea);border-radius:10px;margin-top:6px}
 footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 @media print{header,nav,.no-print,footer{display:none!important}.pagina{display:none!important}#p-risultato{display:block!important}main{padding:0}.card{break-inside:avoid}}
 </style>
@@ -123,6 +127,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <header>
   <h1>TIM Bollette <span class="ver" id="versione"></span></h1>
   <span class="sp"></span>
+  <button class="vista" id="btnBlocco" title="Blocco con PIN e impronta">🔒</button>
   <button class="vista" id="btnGuida" title="Come si usa">?</button>
   <button class="vista" id="btnVista" title="Cambia visualizzazione">▭ Compatta</button>
   <button class="vista" id="btnUtente" title="Utente" style="display:none"></button>
@@ -142,6 +147,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 </nav>
 <div id="bannerVersione"></div>
 <div class="modale" id="modale"><div class="mbox" id="mbox"></div></div>
+<div class="schermo-blocco" id="schermoBlocco"></div>
 <main>
   <div id="avvisoListino"></div>
 
@@ -344,7 +350,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v2.3";
+const VERSIONE = "v2.4";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -1488,5 +1494,6 @@ if('serviceWorker' in navigator && location.protocol==='https:') navigator.servi
 </script>
 <script src="js/extra.js"></script>
 <script src="js/cloud.js"></script>
+<script src="js/blocco.js"></script>
 </body>
 </html>

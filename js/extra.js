@@ -371,7 +371,13 @@ function quizSeServe(){
 }
 
 /* ---------- scadenziario richiami (cifrato) ---------- */
-let RICH_KEY=null, RICHIAMI=[], RICH_TIMER=null, RICH_BOZZA=null;
+let RICH_KEY=null, RICHIAMI=[], RICH_TIMER=null, RICH_BOZZA=null, RICH_PW_TEMP=null;
+function azzeraRichiami(){
+  if(!confirm('Senza password i richiami salvati su questo dispositivo non si possono più leggere. Vuoi cancellarli tutti e creare uno scadenziario nuovo?')) return;
+  if(!confirm('Conferma: tutti i richiami di questo dispositivo verranno cancellati definitivamente.')) return;
+  try{ ['richiami_enc','richiami_meta','richiamiBio'].forEach(k=>localStorage.removeItem(k)); }catch(e){}
+  RICH_KEY=null; RICHIAMI=[]; badgeRichiami(); logEvento('richiami_azzerati',{}); renderRichiami();
+}
 const b64 = u8 => btoa(String.fromCharCode(...u8));
 const unb64 = s => Uint8Array.from(atob(s), c=>c.charCodeAt(0));
 async function derivaChiave(pw, salt){ const base=await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']); return crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:150000, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']); }
@@ -395,13 +401,16 @@ function renderRichiami(){
   if(!a){ box.innerHTML=`<div class="avviso blu">Prima volta: scegli una password per proteggere i richiami (almeno 6 caratteri). Senza password i dati non si possono leggere: non dimenticarla.</div>
     <div class="campi"><label class="c">Password<input type="password" id="rpw1"></label><label class="c">Ripeti password<input type="password" id="rpw2"></label></div>
     <div class="azioni"><button class="btn" id="rCrea">Crea lo scadenziario</button></div><p class="small" id="rMsg"></p>`;
-    $('#rCrea').onclick=async()=>{ const p1=$('#rpw1').value, p2=$('#rpw2').value; if(p1.length<6){ $('#rMsg').textContent='Almeno 6 caratteri'; return; } if(p1!==p2){ $('#rMsg').textContent='Le password non coincidono'; return; } await creaArchivio(p1); renderRichiami(); };
+    $('#rCrea').onclick=async()=>{ const p1=$('#rpw1').value, p2=$('#rpw2').value; if(p1.length<6){ $('#rMsg').textContent='Almeno 6 caratteri'; return; } if(p1!==p2){ $('#rMsg').textContent='Le password non coincidono'; return; } await creaArchivio(p1); RICH_PW_TEMP=p1; renderRichiami(); };
     return; }
-  if(!RICH_KEY){ box.innerHTML=`<div class="lock">🔒 Inserisci la password dello scadenziario<br><input type="password" id="rpw" style="font-size:18px;padding:8px;margin-top:8px;border:1px solid var(--linea);border-radius:10px"><div class="azioni" style="justify-content:center"><button class="btn" id="rApri">Apri</button></div><p class="small" id="rMsg"></p></div>`;
-    $('#rApri').onclick=async()=>{ if(await sbloccaRichiami($('#rpw').value)) renderRichiami(); else $('#rMsg').textContent='Password errata'; };
+  if(!RICH_KEY){ box.innerHTML=`<div class="lock">🔒 Inserisci la password dello scadenziario<br><input type="password" id="rpw" style="font-size:18px;padding:8px;margin-top:8px;border:1px solid var(--linea);border-radius:10px"><div class="azioni" style="justify-content:center"><button class="btn" id="rApri">Apri</button></div><div id="rBio"></div><p class="small" id="rMsg"></p><p class="small"><a href="#" id="rDimenticata">Ho dimenticato la password</a></p></div>`;
+    $('#rApri').onclick=async()=>{ const pw=$('#rpw').value; if(await sbloccaRichiami(pw)){ RICH_PW_TEMP=pw; renderRichiami(); } else $('#rMsg').textContent='Password errata'; };
+    $('#rDimenticata').onclick=e=>{ e.preventDefault(); azzeraRichiami(); };
+    if(typeof bioRichiamiUI==='function') bioRichiamiUI();
     $('#rpw').onkeydown=e=>{ if(e.key==='Enter') $('#rApri').click(); };
     return; }
   riarmaBlocco();
+  const pwOfferta=RICH_PW_TEMP; RICH_PW_TEMP=null;
   const oggi=new Date(); oggi.setHours(0,0,0,0); const lim=new Date(oggi); lim.setDate(lim.getDate()+7);
   const lista=[...RICHIAMI].sort((x,y)=>(x.fatto-y.fatto)||(new Date(x.data)-new Date(y.data)));
   const q=negozio();
@@ -417,6 +426,7 @@ function renderRichiami(){
   box.querySelectorAll('[data-rfatto]').forEach(b=>b.onclick=async()=>{ const r=RICHIAMI.find(x=>x.id===b.dataset.rfatto); r.fatto=!r.fatto; await salvaRichiami(); renderRichiami(); });
   box.querySelectorAll('[data-rdel]').forEach(b=>b.onclick=async()=>{ if(!confirm('Eliminare questo richiamo?')) return; RICHIAMI=RICHIAMI.filter(x=>x.id!==b.dataset.rdel); await salvaRichiami(); renderRichiami(); });
   if(RICH_BOZZA){ formRichiamo(RICH_BOZZA); RICH_BOZZA=null; }
+  if(pwOfferta && typeof offriBioRichiami==='function') offriBioRichiami(pwOfferta);
 }
 function formRichiamo(p){
   const d=p.data? dataInput(p.data) : (()=>{ const x=new Date(); x.setMonth(x.getMonth()+3); return dataInput(x); })();
