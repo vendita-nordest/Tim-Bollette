@@ -1,5 +1,5 @@
 // TIM Bollette - funzionamento offline. Cambiare VERSIONE a ogni aggiornamento (e anche version.json).
-const VERSIONE = 'tim-bollette-v2.4';
+const VERSIONE = 'tim-bollette-v2.5';
 const BASE = ['./','index.html','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','lib/pdfjs/pdf.min.js','lib/pdfjs/pdf.worker.min.js','lib/qrcode.js','js/extra.js','js/cloud.js','js/blocco.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSIONE).then(c => c.addAll(BASE))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== VERSIONE).map(x => caches.delete(x))))); self.clients.claim(); });
