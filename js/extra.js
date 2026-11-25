@@ -450,6 +450,78 @@ function apriNuovoRichiamo(S, ES){
   vai('richiami');
 }
 
+/* ---------- abbonamenti TV e streaming del cliente ---------- */
+function renderStreaming(){
+  const box=$('#streamingBox'); if(!box) return; const S=CLIENTE.streaming=CLIENTE.streaming||{};
+  let h='';
+  for(const [k,nome,piani] of STREAM){
+    const v=S[k]||{on:false, piano:piani[0][0], prezzo:NaN};
+    const prezzoListino=(L.streaming||{})[k+'_'+v.piano];
+    const pr = ok(v.prezzo) ? v.prezzo : (ok(prezzoListino)?prezzoListino:NaN);
+    h+=`<div class="toggle"><label class="q" style="display:flex;gap:8px;align-items:center;min-width:120px"><input type="checkbox" data-st="${k}" data-f="on" ${v.on?'checked':''}> <b>${esc(nome)}</b></label>
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">${piani.length>1?`<select data-st="${k}" data-f="piano" style="padding:6px;border-radius:8px;border:1px solid var(--linea)" ${v.on?'':'disabled'}>${piani.map(([p,pn])=>`<option value="${p}" ${v.piano===p?'selected':''}>${esc(pn)}</option>`).join('')}</select>`:''}
+      <input class="inline-num" data-st="${k}" data-f="prezzo" inputmode="decimal" placeholder="€/mese" value="${v.on&&isFinite(pr)?fmt(pr,2):''}" ${v.on?'':'disabled'}> €/mese</span></div>`;
+  }
+  const tot=Object.values(S).filter(x=>x&&x.on&&ok(x.prezzo)).reduce((t,x)=>t+x.prezzo,0);
+  const mancano=Object.entries(S).filter(([k,x])=>x&&x.on&&!ok(x.prezzo)).map(([k])=>STREAM.find(s=>s[0]===k)[1]);
+  h+=`<p style="margin:10px 0 0"><b>Spende oggi: ${eur(tot,2)} al mese</b> (${eur(tot*12)} l'anno)${mancano.length?` · <span class="neg">inserisci il prezzo di ${esc(mancano.join(', '))}</span>`:''}</p>`;
+  if(!(L.timvision&&L.timvision.pacchetti&&L.timvision.pacchetti.length)) h+=`<p class="small">Per il confronto con TIMVISION importa il Listino TIMVISION (pagina Listino → ⬆️ Importa).</p>`;
+  box.innerHTML=h;
+}
+document.addEventListener('change', ev=>{
+  const i=ev.target; if(!i.dataset || !i.dataset.st) return;
+  const k=i.dataset.st, f=i.dataset.f; const piani=STREAM.find(s=>s[0]===k)[2];
+  const S=CLIENTE.streaming=CLIENTE.streaming||{}; const v=S[k]=S[k]||{on:false, piano:piani[0][0], prezzo:NaN};
+  if(f==='on'){ v.on=i.checked; if(v.on && !ok(v.prezzo)) v.prezzo=(L.streaming||{})[k+'_'+v.piano]; }
+  else if(f==='piano'){ v.piano=i.value; v.prezzo=(L.streaming||{})[k+'_'+v.piano]; }
+  else if(f==='prezzo'){ v.prezzo=parseIT(i.value); }
+  renderStreaming();
+});
+function copreTV(P,k,piano){
+  if(k==='dazn'){ const d=P.dazn; if(!d) return false; if(piano==='myclub') return true; if(piano==='full') return d==='full'||d==='family'; if(piano==='family') return d==='family'; return false; }
+  return (P.contenuti||[]).includes(k);
+}
+function costiTV(pr){ const p=pr.p, d=(pr.dopo!=null?pr.dopo:pr.p), m=pr.mesi||0; if(!m) return [p*12,p*12]; if(m<12) return [p*m+d*(12-m), d*12]; if(m===12) return [p*12, d*12]; return [p*12, p*Math.min(12,m-12)+d*Math.max(0,24-m)]; }
+function testoPrezzoTV(pr){ return pr.mesi ? `${eur(pr.p,2)}/mese per ${pr.mesi} mesi, poi ${eur(pr.dopo!=null?pr.dopo:pr.p,2)}` : `${eur(pr.p,2)}/mese`; }
+const NOMI_TV={netflix:'Netflix',prime:'Prime Video',disney:'Disney+',hbo:'HBO Max',dazn:'DAZN',infinity:'Infinity+',now:'NOW',sky:'Sky',apple:'Apple TV+',paramount:'Paramount+'};
+function valutaTimvision(C, ctx){
+  const TV=L.timvision; if(!TV || !(ctx.abbinata||ctx.mm)) return null;
+  const scaduto = TV.scadenza && TV.scadenza < oggiISO();
+  const attivi=Object.entries(C.streaming||{}).filter(([k,v])=>v&&v.on&&ok(v.prezzo));
+  if(!attivi.length && C.tv!==true) return null;
+  let best=null;
+  for(const P of TV.pacchetti){
+    const pr = ctx.abbinata ? (P.abb||P.mm) : (P.mm||P.abb); if(!pr || !ok(pr.p)) continue;
+    const [y1,y2]=costiTV(pr); let opz=0; const note=[]; const coperti=[];
+    for(const [k,v] of attivi){ if(!copreTV(P,k,v.piano)) continue; coperti.push([k,v]);
+      const o=TV.opzioni||{}; if(['netflix','disney','hbo'].includes(k) && v.piano!=='ads' && ok(o[k])){ opz+=o[k]; note.push(`${NOMI_TV[k]} senza pubblicità +${eur(o[k],2)}/mese (già conteggiato)`); } }
+    if(!coperti.length && C.tv!==true) continue;
+    const risp=coperti.reduce((t,[k,v])=>t+v.prezzo,0); const ut=P.ut||0;
+    const a1=(risp-opz)*12 - y1 - ut, a2=(risp-opz)*12 - y2;
+    const score=a1+a2+coperti.length*0.01;
+    if(!best || score>best.score) best={P,pr,coperti,opz,note,ut,a1,a2,score,risp};
+  }
+  if(!best) return null;
+  const b=best; const esclusi=attivi.filter(([k])=>!b.coperti.find(c=>c[0]===k));
+  const contenuti=(b.P.contenuti||[]).map(k=>NOMI_TV[k]||k).concat(b.P.dazn?['DAZN '+({full:'Full',family:'Family',myclub:'MyClubPass'}[b.P.dazn]||'')]:[]).join(', ');
+  let det=`${b.P.nome} (${contenuti}): ${testoPrezzoTV(b.pr)}`;
+  det+= b.coperti.length ? ` al posto di ${b.coperti.map(([k])=>NOMI_TV[k]).join(', ')} che paga ${eur(b.risp,2)}/mese` : ' (oggi non paga abbonamenti: è una spesa in più)';
+  if(esclusi.length) det+=` · resta a pagare a parte: ${esclusi.map(([k,v])=>NOMI_TV[k]+' '+eur(v.prezzo,2)).join(', ')}`;
+  if(b.note.length) det+=' · '+b.note.join(' · ');
+  if(b.ut) det+=` · attivazione DAZN ${eur(b.ut,2)} una tantum`;
+  det+=' · offerta annuale con rinnovo automatico; se disdice prima di 24 mesi paga le rate di attivazione (1 €/mese)';
+  if(scaduto) det+=` · ⚠️ offerte TIMVISION scadute il ${dataIT(TV.scadenza)}: importa il nuovo Listino`;
+  return {tit:`${b.P.nome} ${b.coperti.length?'al posto dei suoi abbonamenti':''}`.trim(), det, a1:b.a1, a2:b.a2, proponibile:!scaduto};
+}
+function htmlTimvisionListino(){
+  const TV=L.timvision||{}; const ps=TV.pacchetti||[];
+  let h=`<h3 style="display:flex;align-items:center">📺 TIMVISION${TV.scadenza?`<span class="scad chip ${TV.scadenza<oggiISO()?'ko':'ok'}">${TV.scadenza<oggiISO()?'scaduta il ':'valida fino al '}${dataIT(TV.scadenza)}</span>`:''}</h3>`;
+  if(!ps.length) return h+'<p class="small">Nessun pacchetto: importa il file del Listino TIMVISION con ⬆️ Importa.</p>';
+  h+=`<div style="overflow-x:auto"><table class="adm"><tr><th>Pacchetto</th><th>Contenuti</th><th>Con WiFi Casa</th><th>Clienti TIM</th></tr>${ps.map(P=>`<tr><td><b>${esc(P.nome)}</b></td><td class="small">${(P.contenuti||[]).map(k=>NOMI_TV[k]||k).concat(P.dazn?['DAZN '+P.dazn]:[]).join(', ')}</td><td>${P.abb?testoPrezzoTV(P.abb):'—'}</td><td>${P.mm?testoPrezzoTV(P.mm):'—'}</td></tr>`).join('')}</table></div>
+   <p class="small">Si aggiorna importando il file del Listino TIMVISION a ogni nuovo canvass.</p>`;
+  return h;
+}
+
 /* ---------- invio su WhatsApp di tutti i QR ---------- */
 function elencoQR(){
   const q=negozio(); const haNum=numeroWA(q.num).length>=9; const vend=($('#qrVend')&&$('#qrVend').value.trim())||q.vend||'';

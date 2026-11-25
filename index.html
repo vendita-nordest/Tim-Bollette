@@ -190,6 +190,11 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
       <p class="small" style="margin-top:0">Servono per cercare tra le offerte TIM la combinazione più vantaggiosa. I risparmi su internet e mobile vengono contati solo se il cliente sostituisce un servizio che già paga.</p>
       <div id="domande"></div>
     </div>
+    <div class="card">
+      <h2>📺 Abbonamenti TV e streaming che paga oggi</h2>
+      <p class="small" style="margin-top:0">Spunta i servizi del cliente e scegli il piano: il prezzo si compila dal Listino, correggilo se il cliente paga un importo diverso. L'app cerca il pacchetto TIMVISION più conveniente.</p>
+      <div id="streamingBox"></div>
+    </div>
     <div class="azioni"><button class="btn" id="btnCalcola">Calcola la convenienza →</button></div>
   </section>
 
@@ -350,7 +355,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v2.7";
+const VERSIONE = "v2.8";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -397,6 +402,7 @@ function vai(p){
   if(p==='contatti'){ renderLista('contatti'); renderLista('interni'); renderContattiBolletta(); renderVCard(false); }
   if(p==='qr') initQR();
   if(p==='richiami') renderRichiami();
+  if(p==='cliente' && typeof renderStreaming==='function') renderStreaming();
   if(p==='admin') renderAdmin();
   if(p==='listino') renderLock();
   window.scrollTo({top:0});
@@ -405,6 +411,19 @@ document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>vai(b.dataset.
 document.addEventListener('click', e=>{ const t=e.target.closest('[data-vai]'); if(t) vai(t.dataset.vai); });
 
 /* ===================== LISTINO ===================== */
+const STREAM = [
+  ['netflix','Netflix',[['ads','Standard con pubblicità',6.99],['std','Standard',13.99],['prem','Premium',19.99]]],
+  ['prime','Prime Video (Amazon Prime)',[['base','Prime Video',4.99]]],
+  ['disney','Disney+',[['ads','Standard con pubblicità',5.99],['std','Standard',9.99],['prem','Premium',13.99]]],
+  ['hbo','HBO Max',[['ads','Con pubblicità',0],['std','Standard',0],['prem','Premium',0]]],
+  ['dazn','DAZN',[['myclub','MyClubPass',0],['full','Full / Standard',46.99],['family','Family / Plus',71.99]]],
+  ['infinity','Infinity+',[['base','Infinity+',0]]],
+  ['now','NOW',[['ent','Entertainment',8.99],['cinema','Cinema + Entertainment',11.99],['sport','Sport',29.99]]],
+  ['sky','Sky',[['base','Sky TV',0]]],
+  ['apple','Apple TV+',[['base','Apple TV+',0]]],
+  ['paramount','Paramount+',[['base','Paramount+',0]]]
+];
+const STREAM_PREZZI = {}; for(const [k,,piani] of STREAM) for(const [p,,v] of piani) STREAM_PREZZI[k+'_'+p]=v;
 const LISTINO_FABBRICA = {
   aggiornato: '2026-11-24',
   luce: { nome:'TIM Energia Luce – prezzo fisso monorario', prezzo:0.199, mesiBlocco:24, comm:140, disp:0.012, pun:0.115, perdite:10.2, bonusMese:4.25, bonusMesi:12, scadenza:'2026-12-17' },
@@ -413,6 +432,8 @@ const LISTINO_FABBRICA = {
   mobile:{ nome:'TIM Mobile Energia (Giga illimitati 5G)', listino:12.99, prezzoDue:9.99, prezzoUna:9.99, sim:9.99, scadenza:'2026-12-17' },
   pacchetto:{ nome:'Energia + WiFi Casa + TV (+ Mobile)', bonusFisso:96, bonusMobile:24, tvMese:0, scadenza:'2026-12-17' },
   regole:{ specialCBFisso:true, specialConTV:true, specialWifi:false, specialMobile:false },
+  streaming: Object.assign({}, STREAM_PREZZI),
+  timvision:{ nome:'', scadenza:'', pacchetti:[], opzioni:{} },
   promo:{ nome:'', bfDue:0, bfUna:0, bfData:'', cbSconto:0, cbMesi:12, scadenza:'' },
   contributo:{ importo:60 },
   venditore:{ scontoMaxMese:0, scontoMesi:12, segnalazioni:'' }
@@ -441,6 +462,7 @@ const LISTINO_CAMPI = [
   ['promo','🎉 Promo a tempo',[['nome','Nome promo','t'],['bfDue','Bonus per fornitura con 2 forniture (€)','n2'],['bfUna','Bonus con una sola fornitura (€)','n2'],['bfData','Bonus erogato dopo il','d'],
     ['cbSconto','Sconto TIM Energia per clienti TIM fisso €/mese (sulla fattura della linea fissa)','n2'],['cbMesi','Sconto clienti TIM fisso per (mesi)','n0'],['scadenza','Promo valida fino al','d']]],
   ['contributo','🏛️ Contributo straordinario luce',[['importo','Importo annuo € (ISEE ≤ 25.000 €, residenti)','n2']]],
+  ['streaming','📺 Prezzi pubblici dei servizi streaming (€/mese)', STREAM.flatMap(([k,n,piani])=>piani.map(([p,pn])=>[k+'_'+p, n+(piani.length>1?' – '+pn:''), 'n2']))],
   ['venditore','🤝 Sconti del venditore e segnalazioni',[['scontoMaxMese','Sconto massimo che puoi concedere €/mese (0 = non previsto)','n2'],['scontoMesi','Per quanti mesi','n0'],['segnalazioni','Email o WhatsApp per le segnalazioni “bolletta letta male”','t']]]
 ];
 let L;
@@ -464,6 +486,7 @@ function renderListino(){
     }
     h += '</div>';
   }
+  h += htmlTimvisionListino();
   $('#listinoForm').innerHTML = h;
   $('#statoListino').textContent = 'Ultimo aggiornamento: ' + dataIT(L.aggiornato);
 }
@@ -567,7 +590,7 @@ $('#fileIn').onchange=e=>{ leggiFile([...e.target.files]); e.target.value=''; };
 $('#fotoIn').onchange=e=>{ leggiFile([...e.target.files]); e.target.value=''; };
 $('#btnFoto').onclick=()=>$('#fotoIn').click();
 $('#btnManuale').onclick=()=>{ mostraSchede(true); };
-$('#btnNuovo').onclick=()=>{ CASE=[{nome:'Casa principale',dati:vuoto()}]; ATTIVA=0; DATI=CASE[0].dati; renderCasebar(); CLIENTE=clienteVuoto(); ISEE_AGGIUNTO=false; PROMEMORIA_DATA=null; SCONTO={mese:0,mesi:12}; testoUltimo=''; $('#schede').style.display='none'; stato('Pronto per una nuova bolletta. Nessun dato del cliente precedente è stato conservato.', null); renderDomande(); $('#risultato').innerHTML='<div class="card"><p>Carica una bolletta e rispondi alle domande per vedere il confronto.</p></div>'; };
+$('#btnNuovo').onclick=()=>{ CASE=[{nome:'Casa principale',dati:vuoto()}]; ATTIVA=0; DATI=CASE[0].dati; renderCasebar(); CLIENTE=clienteVuoto(); ISEE_AGGIUNTO=false; PROMEMORIA_DATA=null; SCONTO={mese:0,mesi:12}; testoUltimo=''; $('#schede').style.display='none'; stato('Pronto per una nuova bolletta. Nessun dato del cliente precedente è stato conservato.', null); renderDomande(); renderStreaming(); $('#risultato').innerHTML='<div class="card"><p>Carica una bolletta e rispondi alle domande per vedere il confronto.</p></div>'; };
 
 /* ===================== ESTRAZIONE DATI ===================== */
 const NUM = '(\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+(?:[,.]\\d+)?)';
@@ -880,7 +903,7 @@ function calcolaFornitura(kind, dd){
 }
 
 /* ===================== DOMANDE CLIENTE ===================== */
-function clienteVuoto(){ return { connessione:'fibra', fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, tvPaga:null, costoTV:NaN, tv:null, isee:null, residente:null }; }
+function clienteVuoto(){ return { connessione:'fibra', fissoTIM:null, mobileTIM:null, internet:null, costoInternet:NaN, sim:null, costoSim:NaN, streaming:{}, tv:null, isee:null, residente:null }; }
 let CLIENTE = clienteVuoto();
 const DOMANDE = [
   ['fissoTIM','Ha già la linea di casa (internet/telefono) con TIM?'],
@@ -888,8 +911,7 @@ const DOMANDE = [
   ['connessione','🔎 Che connessione TIM arriva a casa del cliente? <span class="small">(verifica la copertura)</span>',null,null,'fissoTIM'],
   ['mobileTIM','Ha già una SIM TIM?'],
   ['sim','⭐ Ha una SIM con un altro operatore? Quanto paga?','costoSim','€/mese','mobileTIM'],
-  ['tvPaga','Paga già TV o streaming (Sky, Netflix, DAZN…)? Quanto in tutto?','costoTV','€/mese'],
-  ['tv','È interessato a TIM TV?'],
+  ['tv','Vuole TIMVISION anche se oggi non paga abbonamenti TV?'],
   ['residente','La luce è per l\'abitazione di residenza?'],
   ['isee','Ha un ISEE fino a 25.000 €?']
 ];
@@ -909,6 +931,7 @@ function renderDomande(){
 $('#domande').addEventListener('click', e=>{ const b=e.target.closest('.seg button'); if(!b) return; const k=b.parentElement.dataset.q; CLIENTE[k] = k==='connessione' ? b.dataset.v : b.dataset.v==='1'; renderDomande(); });
 $('#domande').addEventListener('input', e=>{ if(e.target.dataset.cost) CLIENTE[e.target.dataset.cost]=parseIT(e.target.value); });
 renderDomande();
+setTimeout(()=>{ if(typeof renderStreaming==='function') renderStreaming(); },0);
 $('#btnCalcola').onclick=()=>vai('risultato');
 
 /* ===================== CONVENIENZA ===================== */
@@ -955,26 +978,31 @@ function calcolaScala(){
     }
   }
   const pW = passi.find(p=>p.id==='wifi'), pM = passi.find(p=>p.id==='mobile');
-  // WiFi Casa + TV (eventualmente + Mobile): sconto TV e bonus Special
+  // TV: TIMVISION (dal Listino) oppure prezzo TV generico
   let pTV=null;
-  if(!giaFisso && pW && isFinite(pW.a1)){
-    const conMob = pM && pM.incl;
-    const tvMese = L.pacchetto.tvMese||0;                                   // prezzo pieno di TIM TV
-    const oggiTV = (C.tvPaga===true && ok(C.costoTV)) ? C.costoTV : 0;      // quanto paga oggi per TV/streaming
-    const sconto = L.pacchetto.bonusFisso + (conMob?L.pacchetto.bonusMobile:0);
-    if(!ok(tvMese)){
-      pTV={id:'pacchetto', tit:`WiFi Casa + TV${conMob?' + Mobile':''} con TIM Energia`, det:`⚠️ inserisci nel Listino il prezzo di TIM TV (sezione “Pacchetto”): senza il costo della TV lo sconto di ${eur(sconto)} non si può contare`, a1:NaN, a2:NaN, incl:false};
-    } else {
-      const a1 = (oggiTV - tvMese)*12 + sconto, a2 = (oggiTV - tvMese)*12;
-      pTV={id:'pacchetto', tit:`WiFi Casa + TV${conMob?' + Mobile':''} con TIM Energia`, det:`TIM TV ${eur(tvMese,2)}/mese${oggiTV?` al posto di ${eur(oggiTV,2)}/mese che paga oggi`:' (oggi non paga TV: è una spesa in più)'} · sconto TV ${eur(sconto)} il 1° anno`+(RG.specialConTV?' · dà diritto al bonus Special':'')+(C.tv===true?'':' · proponilo se interessa la TV'),
-        a1, a2, incl: C.tv===true && pW.incl && (a1 + a2 + (RG.specialConTV?bonus:0)) > 0};   // conviene sui 2 anni, non solo il primo
+  const spesaStreaming = Object.values(C.streaming||{}).filter(v=>v&&v.on&&ok(v.prezzo)).reduce((t,v)=>t+v.prezzo,0);
+  if(L.timvision && Array.isArray(L.timvision.pacchetti) && L.timvision.pacchetti.length){
+    const ctx = { abbinata: !giaFisso && !!(pW && pW.incl), mm: giaFisso || giaMobile, conMob: !!(pM && pM.incl) };
+    const T = valutaTimvision(C, ctx);
+    if(T){
+      const sconto = ctx.abbinata ? (L.pacchetto.bonusFisso + (ctx.conMob?L.pacchetto.bonusMobile:0)) : 0;
+      const a1=T.a1+sconto, a2=T.a2;
+      pTV={id:'pacchetto', tit:T.tit, det:T.det+(sconto?` · sconto sulla fibra con la TV ${eur(sconto)} il 1° anno`:'')+(ctx.abbinata&&RG.specialConTV?' · dà diritto al bonus Special':''), a1, a2, abbinata:ctx.abbinata,
+        incl: T.proponibile && (a1 + a2 + ((ctx.abbinata&&RG.specialConTV)?bonus:0)) > 0};
+      passi.push(pTV);
     }
+  } else if(!giaFisso && pW && isFinite(pW.a1)){
+    const conMob = pM && pM.incl; const tvMese = L.pacchetto.tvMese||0; const oggiTV = spesaStreaming;
+    const sconto = L.pacchetto.bonusFisso + (conMob?L.pacchetto.bonusMobile:0);
+    if(!ok(tvMese)) pTV={id:'pacchetto', tit:`WiFi Casa + TV con TIM Energia`, det:`⚠️ importa il Listino TIMVISION o inserisci il prezzo della TV (sezione “Pacchetto”): senza il costo della TV lo sconto di ${eur(sconto)} non si può contare`, a1:NaN, a2:NaN, incl:false, abbinata:true};
+    else { const a1=(oggiTV-tvMese)*12+sconto, a2=(oggiTV-tvMese)*12;
+      pTV={id:'pacchetto', tit:`WiFi Casa + TV con TIM Energia`, det:`TIM TV ${eur(tvMese,2)}/mese${oggiTV?` al posto di ${eur(oggiTV,2)}/mese che paga oggi`:' (oggi non paga TV: è una spesa in più)'} · sconto TV ${eur(sconto)} il 1° anno`, a1, a2, abbinata:true, incl: (C.tv===true||oggiTV>0) && pW.incl && (a1+a2+(RG.specialConTV?bonus:0))>0}; }
     passi.push(pTV);
   }
   // bonus Special: solo dove le regole del Listino lo prevedono
   const motivi=[];
   if(giaFisso && RG.specialCBFisso) motivi.push('cliente TIM fisso');
-  if(pTV && pTV.incl && RG.specialConTV) motivi.push('WiFi Casa + TV');
+  if(pTV && pTV.incl && pTV.abbinata && RG.specialConTV) motivi.push('WiFi Casa + TV');
   if(pW && pW.incl && !(pTV&&pTV.incl) && RG.specialWifi) motivi.push('WiFi Casa');
   if((giaMobile || (pM&&pM.incl)) && RG.specialMobile) motivi.push('cliente mobile');
   const doveSpetta=[RG.specialCBFisso&&'clienti TIM fisso già attivi', RG.specialConTV&&'WiFi Casa + TV', RG.specialWifi&&'WiFi Casa', RG.specialMobile&&'clienti mobile'].filter(Boolean).join(', ')||'nessuno';
@@ -1077,7 +1105,8 @@ const NUOVE_T = {
   es:{step2:'🎁 {t}: {v} más a partir del segundo año', blackfriday:'Bono Black Friday', bonusfisso:'Bono en la factura de la línea fija TIM', scontocb:'Descuento TIM Energia para clientes de línea fija TIM'},
   fr:{step2:'🎁 {t} : {v} de plus à partir de la deuxième année', blackfriday:'Bonus Black Friday', bonusfisso:'Bonus sur la facture de la ligne fixe TIM', scontocb:'Remise TIM Energia pour les clients de la ligne fixe TIM'}
 };
-for(const [k,v] of Object.entries(NUOVE_T)){ if(!LINGUE[k]) continue; LINGUE[k].step2=v.step2; Object.assign(LINGUE[k].passi,{blackfriday:v.blackfriday, bonusfisso:v.bonusfisso, scontocb:v.scontocb}); }
+const TV_T={it:'TIMVISION al posto dei tuoi abbonamenti',en:'TIMVISION instead of your current subscriptions',ro:'TIMVISION în locul abonamentelor tale',sq:'TIMVISION në vend të abonimeve të tua',ar:'TIMVISION بدلاً من اشتراكاتك الحالية',zh:'TIMVISION 替代您现有的订阅',uk:'TIMVISION замість ваших підписок',es:'TIMVISION en lugar de tus suscripciones',fr:'TIMVISION à la place de vos abonnements'};
+for(const [k,v] of Object.entries(NUOVE_T)){ if(!LINGUE[k]) continue; LINGUE[k].step2=v.step2; Object.assign(LINGUE[k].passi,{blackfriday:v.blackfriday, bonusfisso:v.bonusfisso, scontocb:v.scontocb, pacchetto:TV_T[k]}); }
 const tpl = (s,o) => s.replace(/\{(\w+)\}/g,(m,k)=>o[k]!==undefined?o[k]:m);
 function testoWhatsApp(S, lang){
   const T = LINGUE[lang]||LINGUE.it; const r=[];
