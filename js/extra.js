@@ -26,7 +26,7 @@ function apriGuida(){
   <ol style="padding-left:18px;line-height:1.5">
     <li><b>Bolletta</b>: carica il PDF o fotografa la bolletta del cliente. Controlla i campi: verdi = letti, gialli = da completare.</li>
     <li><b>Cliente</b>: fai le domande, soprattutto <b>quanto paga internet e cellulare</b>: è lì che TIM recupera.</li>
-    <li><b>Risultato</b>: guarda l'esito (subito / con pacchetto / non ora), la scala della convenienza e le leve “Per il venditore”. Con “Mostra al cliente” nascondi i tuoi margini.</li>
+    <li><b>Risultato</b>: guarda l'esito (subito / con pacchetto / non ora), la scala della convenienza e le leve “Per il venditore”. Con <b>“👁️ Schermata per il cliente”</b> puoi girare lo schermo verso il cliente: il riquadro in alto usa parole per lui (oggi spende / con TIM spenderebbe e i vantaggi) e spariscono esito, richiamo, sconti, leve e suggerimenti per te. Una barra gialla in alto ricorda che sei in questa vista; per tornare premi “↩︎ Torna alla vista venditore”.</li>
     <li><b>Chiudi</b>: invia il riepilogo su WhatsApp (anche in altre lingue) o il preventivo PDF. Se oggi non passa, aggiungilo ai <b>Richiami</b>.</li>
   </ol>
   <p class="small">Altre pagine: Obiezioni (risposte pronte), Contatti (numeri utili e QR rubrica), QR negozio, Materiali (locandine), Listino (prezzi, protetto da PIN).</p>
@@ -222,13 +222,13 @@ function htmlCombinazione(S, ES){
   const en=inc.find(p=>p.id==='energia');
   const riga=p=> p.a1>0 ? `<li><b>${esc(p.tit)}</b> <span class="pos">${eurS(p.a1)}</span> il 1° anno${(p.a2||0)>0?` e <span class="pos">${eurS(p.a2)}</span> il 2° anno`:''}</li>`
                         : `<li><b>${esc(p.tit)}</b> <span class="pos">${eurS(p.a2)}</span> nel 2° anno</li>`;
-  let h=`<div class="card"><h2>🧩 Combinazione TIM consigliata</h2>`;
+  let h=`<div class="card"><h2>🧩 ${document.body.classList.contains('modocliente')?(S.tot1>=0?'I vantaggi TIM per lei':'Il confronto con TIM'):'Combinazione TIM consigliata'}</h2>`;
   if(vant.length) h+=`<p class="small" style="margin:0 0 4px"><b>Vantaggi TIM</b></p><ul class="arg">${vant.map(riga).join('')}</ul>`;
   if(en) h+=`<p class="small" style="margin:8px 0 4px"><b>Prezzo dell'energia</b></p><ul class="arg"><li>${en.a1>=0?`Con TIM l'energia costa <span class="pos">${eur(en.a1)} in meno</span> all'anno`:`Con TIM l'energia costa ${eur(-en.a1)} in più all'anno`}${S.R.luce.ok?`, con il prezzo della luce bloccato ${L.luce.mesiBlocco} mesi`:''}</li></ul>`;
-  h+=`<table class="scala" style="margin-top:8px"><tr class="tot"><td>Totale per il cliente</td><td class="n ${cls(S.tot1)}">1° anno ${eurS(S.tot1)}</td><td class="n ${cls(S.tot1+S.tot2)}">in 2 anni ${eurS(S.tot1+S.tot2)}</td></tr></table>`;
-  if(ES.k==='nonora') h+=`<p>Oggi il passaggio non conviene al cliente. Proponi di risentirvi il <b>${ES.data.toLocaleDateString('it-IT')}</b>${scadenzeCliente(S).length?', prima che scada il suo prezzo':''}.</p><div class="azioni no-print"><button class="btn picc" id="btnRichiamoDa">⏰ Aggiungi ai Richiami</button></div>`;
-  else if(ES.k==='pari') h+=`<p>La differenza è di ${eur(ES.sconto,2)} al mese il 1° anno${S.tot1+S.tot2>=0?' e si recupera nel 2° anno':''}.</p><div class="azioni no-print"><button class="btn verde picc" id="btnScontoPari">Applica uno sconto di ${eur(ES.sconto,2)}/mese per 12 mesi</button><button class="btn sec picc" id="btnRichiamoDa">⏰ Oppure aggiungi ai Richiami</button></div>`;
-  else if(ES.k==='pacchetto') h+=`<p class="small">Sull'energia da sola il cliente spende un po' di più: la convenienza arriva unendo i servizi TIM della lista.</p>`;
+  h+=`<table class="scala ${S.tot1<0?'solo-venditore':''}" style="margin-top:8px"><tr class="tot"><td>Totale</td><td class="n ${cls(S.tot1)}">1° anno ${eurS(S.tot1)}</td><td class="n ${cls(S.tot1+S.tot2)}">in 2 anni ${eurS(S.tot1+S.tot2)}</td></tr></table>`;
+  if(ES.k==='nonora') h+=`<p class="solo-venditore">Oggi il passaggio non conviene al cliente. Proponi di risentirvi il <b>${ES.data.toLocaleDateString('it-IT')}</b>${scadenzeCliente(S).length?', prima che scada il suo prezzo':''}.</p><div class="azioni no-print"><button class="btn picc" id="btnRichiamoDa">⏰ Aggiungi ai Richiami</button></div>`;
+  else if(ES.k==='pari') h+=`<p class="solo-venditore">La differenza è di ${eur(ES.sconto,2)} al mese il 1° anno${S.tot1+S.tot2>=0?' e si recupera nel 2° anno':''}.</p><div class="azioni no-print"><button class="btn verde picc" id="btnScontoPari">Applica uno sconto di ${eur(ES.sconto,2)}/mese per 12 mesi</button><button class="btn sec picc" id="btnRichiamoDa">⏰ Oppure aggiungi ai Richiami</button></div>`;
+  else if(ES.k==='pacchetto') h+=`<p class="small solo-venditore">Sull'energia da sola il cliente spende un po' di più: la convenienza arriva unendo i servizi TIM della lista.</p>`;
   return h+'</div>'+htmlCosaDire(S, ES);
 }
 function htmlCosaDire(S, ES){
