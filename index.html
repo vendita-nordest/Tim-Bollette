@@ -340,7 +340,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
         <button class="btn sec" id="btnEsporta">⬇️ Esporta</button>
         <button class="btn sec" id="btnImporta">⬆️ Importa</button>
         <button class="btn sec" id="btnReset">Ripristina valori di fabbrica</button>
-        <input type="file" id="impIn" accept="application/json" hidden>
+        <input type="file" id="impIn" accept=".json,application/json,text/plain,text/json" hidden>
         <button class="btn sec" id="btnPin">🔑 PIN del Listino</button>
       </div>
       </div>
@@ -355,7 +355,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v2.8";
+const VERSIONE = "v2.9";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -500,7 +500,21 @@ $('#btnSalvaListino').onclick = ()=>{ leggiListinoForm(); try{ localStorage.setI
 $('#btnReset').onclick = ()=>{ if(!confirm('Ripristinare i valori di fabbrica del listino?')) return; try{ localStorage.removeItem('listino'); }catch(e){} caricaListino(); renderListino(); avvisoListino(); };
 $('#btnEsporta').onclick = ()=>{ leggiListinoForm(); const b=new Blob([JSON.stringify(L,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='listino-tim-'+oggiISO()+'.json'; a.click(); };
 $('#btnImporta').onclick = ()=>$('#impIn').click();
-$('#impIn').onchange = async e=>{ try{ const s=JSON.parse(await e.target.files[0].text()); for(const k in s){ if(L[k]&&typeof s[k]==='object') Object.assign(L[k],s[k]); else L[k]=s[k]; } localStorage.setItem('listino',JSON.stringify(L)); renderListino(); avvisoListino(); $('#statoListino').textContent='✅ Listino importato'; }catch(err){ alert('File non valido'); } };
+$('#impIn').onchange = async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  let s;
+  try{ s=JSON.parse((await f.text()).replace(/^\uFEFF/,'')); }
+  catch(err){ alert(`Il file “${f.name}” non si può leggere: non è un listino (deve essere il file .json esportato o ricevuto, non aperto e risalvato con un altro programma).\n\nDettaglio: ${err.message}`); return; }
+  if(!s || typeof s!=='object' || Array.isArray(s)){ alert(`Il file “${f.name}” non contiene un listino.`); return; }
+  const noti=Object.keys(s).filter(k=>k in LISTINO_FABBRICA);
+  if(!noti.length){ alert(`Il file “${f.name}” non contiene voci del listino TIM Bollette (luce, gas, timvision…).`); return; }
+  for(const k in s){ if(L[k]&&typeof s[k]==='object'&&!Array.isArray(s[k])) Object.assign(L[k],s[k]); else L[k]=s[k]; }
+  try{ localStorage.setItem('listino',JSON.stringify(L)); }
+  catch(err){ alert('Non riesco a salvare il listino su questo dispositivo (memoria del browser piena o bloccata).\n\nDettaglio: '+err.message); return; }
+  try{ renderListino(); avvisoListino(); }
+  catch(err){ alert('Il listino è stato importato e salvato, ma la pagina non riesce a mostrarlo: l\'app sul dispositivo non è completa. Chiudi e riapri l\'app; se resta così premi “Aggiorna” o ricarica la pagina.\n\nDettaglio: '+err.message); return; }
+  $('#statoListino').textContent='✅ Listino importato: '+noti.join(', ');
+};
 function avvisoListino(){
   const oggi=oggiISO(); const scadute=[];
   for(const [k,tit] of LISTINO_CAMPI){ if(L[k].scadenza && L[k].scadenza<oggi) scadute.push(tit.replace(/^\S+\s/,'')+' ('+dataIT(L[k].scadenza)+')'); }
@@ -1532,8 +1546,22 @@ function attivaPromemoria(S){
 /* ===================== OFFLINE ===================== */
 if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
-<script src="js/extra.js"></script>
-<script src="js/cloud.js"></script>
-<script src="js/blocco.js"></script>
+<script src="js/extra.js?v=2.9"></script>
+<script src="js/cloud.js?v=2.9"></script>
+<script src="js/blocco.js?v=2.9"></script>
+<script>
+/* v2.9 – controllo integrità: se un file js/ è di una versione vecchia (copia rimasta nel browser), l'app si ripulisce e si ricarica da sola una volta */
+(async()=>{
+  const servono=['htmlTimvisionListino','renderStreaming','valutaTimvision','apriInvioQR','azzeraRichiami','controllaVersione'];
+  const mancano=servono.filter(n=>typeof window[n]!=='function');
+  if(!mancano.length){ try{ sessionStorage.removeItem('riparato'); }catch(e){} return; }
+  let gia=false; try{ gia=sessionStorage.getItem('riparato')==='1'; }catch(e){}
+  if(gia){ const d=document.createElement('div'); d.className='banner'; d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:9999';
+    d.textContent='⚠️ L\'app non è aggiornata del tutto su questo dispositivo ('+mancano.join(', ')+'). Chiudi tutte le schede dell\'app e riaprila; se non basta, avvisa l\'amministratore.'; document.body.appendChild(d); return; }
+  try{ sessionStorage.setItem('riparato','1'); }catch(e){}
+  try{ const regs=await navigator.serviceWorker?.getRegistrations?.()||[]; for(const g of regs) await g.unregister(); const k=await caches.keys(); for(const c of k) if(c.startsWith('tim-bollette')) await caches.delete(c); }catch(e){}
+  location.reload();
+})();
+</script>
 </body>
 </html>
