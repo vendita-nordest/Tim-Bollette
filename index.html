@@ -236,7 +236,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
     </div>
     <div class="card">
       <h2>🏪 Contatti interni (per i centri TIM)</h2>
-      <p class="small" style="margin-top:0">Referente energia, canale partner, back office: inseriscili tu con “Modifica”. Restano su questo dispositivo.</p>
+      <p class="small" style="margin-top:0">Numeri riservati agli addetti, da non dare ai clienti. Puoi aggiungerne altri (referente energia, back office…) con “Modifica”: restano su questo dispositivo.</p>
       <div id="lista-interni"></div>
       <div class="azioni"><button class="btn sec picc" data-modlista="interni">✏️ Modifica</button></div>
     </div>
@@ -356,7 +356,7 @@ footer{text-align:center;font-size:11px;color:var(--grigio);padding:10px}
 <script src="firebase-config.js"></script>
 <script>
 "use strict";
-const VERSIONE = "v3.1";
+const VERSIONE = "v3.2";
 document.getElementById('versione').textContent = VERSIONE;
 
 /* ===================== UTILITÀ ===================== */
@@ -1341,11 +1341,19 @@ const LISTE_FABBRICA = {
     {t:'Guasti e pronto intervento', r:'Non si chiama TIM ma il distributore locale: il numero è nella prima pagina della bolletta.'},
     {t:'Pagamento', r:'Addebito su IBAN SEPA intestato allo stesso titolare della fornitura.'}
   ],
-  interni: []
+  interni: [
+    {t:'Assistenza telefonica negozi', r:'06 9716 6655 — per ricevere assistenza bisogna dare la propria matricola di accesso.'}
+  ]
 };
 const LISTE_DOVE = {obiezioni:'#lista-obiezioni', contatti:'#lista-contatti', interni:'#lista-interni'};
 let MODIFICA = {};
-function getLista(k){ try{ const s=JSON.parse(localStorage.getItem('lista_'+k)||'null'); if(Array.isArray(s)) return s; }catch(e){} return JSON.parse(JSON.stringify(LISTE_FABBRICA[k])); }
+function getLista(k){
+  try{ const s=JSON.parse(localStorage.getItem('lista_'+k)||'null'); if(Array.isArray(s)){
+    // v3.2: aggiunge una sola volta il numero di assistenza negozi anche a chi aveva già modificato i contatti interni
+    if(k==='interni' && !localStorage.getItem('assNegozi') && !s.some(x=>/9716\s?6655/.test(String(x.r).replace(/\s/g,' ')))){ s.unshift(JSON.parse(JSON.stringify(LISTE_FABBRICA.interni[0]))); localStorage.setItem('lista_'+k, JSON.stringify(s)); }
+    if(k==='interni') localStorage.setItem('assNegozi','1');
+    return s; } }catch(e){}
+  return JSON.parse(JSON.stringify(LISTE_FABBRICA[k])); }
 function salvaLista(k,arr){ try{ localStorage.setItem('lista_'+k, JSON.stringify(arr)); }catch(e){} }
 function riempi(s){
   return String(s).replace(/\{(\w+)\}/g,(m,k)=>({mesiLuce:L.luce.mesiBlocco, mesiGas:L.gas.mesiBlocco, prezzoLuce:fmt(L.luce.prezzo,3)+' €/kWh', bonusMese:eur(L.luce.bonusMese,2), bonusAnno:eur(L.luce.bonusMese*L.luce.bonusMesi), scontoFibra:eur(L.wifi.scontoDue,0), mobile:eur(L.mobile.prezzoDue,2), contributo:eur(L.contributo.importo)})[k] ?? m);
@@ -1563,9 +1571,9 @@ function attivaPromemoria(S){
 /* ===================== OFFLINE ===================== */
 if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
-<script src="js/extra.js?v=3.1"></script>
-<script src="js/cloud.js?v=3.1"></script>
-<script src="js/blocco.js?v=3.1"></script>
+<script src="js/extra.js?v=3.2"></script>
+<script src="js/cloud.js?v=3.2"></script>
+<script src="js/blocco.js?v=3.2"></script>
 <script>
 /* v2.9 – controllo integrità: se un file js/ è di una versione vecchia (copia rimasta nel browser), l'app si ripulisce e si ricarica da sola una volta */
 (async()=>{
