@@ -26,7 +26,7 @@ function apriGuida(){
   <ol style="padding-left:18px;line-height:1.5">
     <li><b>Bolletta</b>: carica il PDF o fotografa la bolletta del cliente. Controlla i campi: verdi = letti, gialli = da completare.</li>
     <li><b>Cliente</b>: fai le domande, soprattutto <b>quanto paga internet e cellulare</b>: è lì che TIM recupera.</li>
-    <li><b>Risultato</b>: guarda l'esito (subito / con pacchetto / non ora), la scala della convenienza e le leve “Per il venditore”. Con <b>“👁️ Schermata per il cliente”</b> puoi girare lo schermo verso il cliente: il riquadro in alto usa parole per lui (oggi spende / con TIM spenderebbe e i vantaggi) e spariscono esito, richiamo, sconti, leve e suggerimenti per te. Una barra gialla in alto ricorda che sei in questa vista; per tornare premi “↩︎ Torna alla vista venditore”.</li>
+    <li><b>Risultato</b>: guarda l'esito (subito / con pacchetto / non ora), la scala della convenienza e le leve “Per il venditore”. Con <b>“💬 Frasi pronte”</b> trovi frasi già scritte adatte all'esito, da dire o da copiare (si modificano nel Listino).</li>
     <li><b>Chiudi</b>: invia il riepilogo su WhatsApp (anche in altre lingue) o il preventivo PDF. Se oggi non passa, aggiungilo ai <b>Richiami</b>.</li>
   </ol>
   <p class="small">Altre pagine: Obiezioni (risposte pronte), Contatti (numeri utili e QR rubrica), QR negozio, Materiali (locandine), Listino (prezzi, protetto da PIN).</p>
@@ -222,7 +222,7 @@ function htmlCombinazione(S, ES){
   const en=inc.find(p=>p.id==='energia');
   const riga=p=> p.a1>0 ? `<li><b>${esc(p.tit)}</b> <span class="pos">${eurS(p.a1)}</span> il 1° anno${(p.a2||0)>0?` e <span class="pos">${eurS(p.a2)}</span> il 2° anno`:''}</li>`
                         : `<li><b>${esc(p.tit)}</b> <span class="pos">${eurS(p.a2)}</span> nel 2° anno</li>`;
-  let h=`<div class="card"><h2>🧩 ${document.body.classList.contains('modocliente')?(S.tot1>=0?'I vantaggi TIM per lei':'Il confronto con TIM'):'Combinazione TIM consigliata'}</h2>`;
+  let h=`<div class="card"><h2>🧩 Combinazione TIM consigliata</h2>`;
   if(vant.length) h+=`<p class="small" style="margin:0 0 4px"><b>Vantaggi TIM</b></p><ul class="arg">${vant.map(riga).join('')}</ul>`;
   if(en) h+=`<p class="small" style="margin:8px 0 4px"><b>Prezzo dell'energia</b></p><ul class="arg"><li>${en.a1>=0?`Con TIM l'energia costa <span class="pos">${eur(en.a1)} in meno</span> all'anno`:`Con TIM l'energia costa ${eur(-en.a1)} in più all'anno`}${S.R.luce.ok?`, con il prezzo della luce bloccato ${L.luce.mesiBlocco} mesi`:''}</li></ul>`;
   h+=`<table class="scala ${S.tot1<0?'solo-venditore':''}" style="margin-top:8px"><tr class="tot"><td>Totale</td><td class="n ${cls(S.tot1)}">1° anno ${eurS(S.tot1)}</td><td class="n ${cls(S.tot1+S.tot2)}">in 2 anni ${eurS(S.tot1+S.tot2)}</td></tr></table>`;
@@ -570,3 +570,46 @@ $('#btnInviaQR').onclick=apriInvioQR;
 badgeRichiami();
 controllaVersione();
 try{ if(!localStorage.getItem('guidaVista')) setTimeout(apriGuida, 600); }catch(e){}
+
+/* ---------- v3.1 Frasi pronte per l'addetto ---------- */
+const CAT_FRASI = {nonora:'⏰ Oggi non conviene', pari:'🤝 Quasi alla pari', conviene:'✅ Conviene', sempre:'⭐ Sempre valide'};
+function catEsito(ES){ return ES.k==='nonora' ? 'nonora' : ES.k==='pari' ? 'pari' : 'conviene'; }
+function riempiFrase(t, S){
+  const q=negozio(); const sc=scadenzeCliente(S).filter(s=>s.mesi>=0).sort((a,b)=>parseData(a.data)-parseData(b.data))[0];
+  const m=L.luce.mesiBlocco||24;
+  const v={ risparmio: S.tot1>0?eur(S.tot1):'', risparmio2anni: S.tot1+S.tot2>0?eur(S.tot1+S.tot2):'', scadenza: sc?sc.data:'',
+    mesiLuce: String(m), anniLuce: m%12===0 ? (m===12?'1 anno':(m/12)+' anni') : m+' mesi', bonusAnno: eur((L.luce.bonusMese||0)*(L.luce.bonusMesi||0)),
+    negozio: q.nome||'', numero: q.num||'' };
+  let manca=false;
+  const out=String(t).replace(/\{(\w+)\}/g,(x,k)=>{ if(!(k in v)) return x; if(!v[k]) manca=true; return v[k]; });
+  return manca ? null : out;
+}
+function apriFrasi(S, ES){
+  const cat=catEsito(ES); const fr=(L.frasi||[]);
+  const blocco=(c,aperto)=>{ const lista=fr.map(f=>f.c===c?riempiFrase(f.t,S):undefined).filter(x=>x);
+    if(!lista.length) return '';
+    const items=lista.map(t=>`<div class="riga-ct" style="display:flex;gap:8px;align-items:flex-start"><span style="flex:1">“${esc(t)}”</span><button class="btn sec picc" data-copiafrase="${esc(t)}">Copia</button><button class="btn verde picc" data-wafrase="${esc(t)}">WhatsApp</button></div>`).join('');
+    return aperto ? `<h3>${CAT_FRASI[c]}${c===cat?' <span class="chip ok">adatte a questo cliente</span>':''}</h3>${items}` : `<details style="margin-top:8px"><summary><b>${CAT_FRASI[c]}</b></summary>${items}</details>`; };
+  const altre=['nonora','pari','conviene'].filter(c=>c!==cat);
+  apriModale(`<h2>💬 Frasi pronte</h2><p class="small" style="margin-top:0">Le frasi con dati che mancano (es. la scadenza del prezzo o il numero del negozio) non vengono mostrate. Si modificano nel Listino.</p>
+    ${blocco(cat,true)}${blocco('sempre',true)}${altre.map(c=>blocco(c,false)).join('')}
+    <div class="azioni"><button class="btn" data-chiudi>Chiudi</button></div>`);
+  logEvento('frasi',{esito:ES.k});
+}
+document.addEventListener('click', async e=>{
+  const c=e.target.closest('[data-copiafrase]'); if(c){ try{ await navigator.clipboard.writeText(c.dataset.copiafrase); c.textContent='✅ Copiata'; }catch(err){} return; }
+  const w=e.target.closest('[data-wafrase]'); if(w){ window.open('https://wa.me/?text='+encodeURIComponent(w.dataset.wafrase),'_blank'); }
+});
+function htmlFrasiListino(){
+  const fr=L.frasi||[];
+  const opt=c=>Object.entries(CAT_FRASI).map(([k,v])=>`<option value="${k}" ${k===c?'selected':''}>${v}</option>`).join('');
+  return `<h3>💬 Frasi pronte</h3><p class="small" style="margin-top:0">Frasi suggerite agli addetti nel Risultato. Segnaposto: {risparmio} {risparmio2anni} {scadenza} {mesiLuce} {anniLuce} {bonusAnno} {negozio} {numero}.</p>
+  <div id="frasiEd">${fr.map(f=>`<div class="ed-item" data-frase><select data-fc>${opt(f.c)}</select><textarea data-ft>${esc(f.t)}</textarea><button class="btn sec picc" type="button" data-delfrase>🗑️ Elimina</button></div>`).join('')}</div>
+  <div class="azioni"><button class="btn sec picc" type="button" id="addFrase">+ Aggiungi frase</button><button class="btn sec picc" type="button" id="resetFrasi">Ripristina frasi originali</button></div>`;
+}
+function leggiFrasiListino(){ const el=document.querySelectorAll('#frasiEd [data-frase]'); if(!$('#frasiEd')) return L.frasi||[]; return [...el].map(d=>({c:d.querySelector('[data-fc]').value, t:d.querySelector('[data-ft]').value.trim()})).filter(f=>f.t); }
+document.addEventListener('click', e=>{
+  if(e.target.closest('[data-delfrase]')){ e.target.closest('[data-frase]').remove(); return; }
+  if(e.target.id==='addFrase'){ leggiListinoForm(); L.frasi.push({c:'sempre',t:''}); renderListino(); const t=[...document.querySelectorAll('#frasiEd [data-ft]')].pop(); if(t) t.focus(); return; }
+  if(e.target.id==='resetFrasi'){ if(!confirm('Ripristinare le frasi originali? Ricordati poi di premere “Salva listino”.')) return; leggiListinoForm(); L.frasi=FRASI_FABBRICA.map(x=>Object.assign({},x)); renderListino(); }
+});

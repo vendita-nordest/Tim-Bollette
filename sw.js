@@ -1,7 +1,7 @@
 // TIM Bollette - funzionamento offline. Cambiare VERSIONE a ogni aggiornamento (e anche version.json).
 // v2.9: pagina, js/ e file di configurazione arrivano SEMPRE prima dalla rete (la copia salvata serve solo offline),
 // così dopo un aggiornamento non restano mai file vecchi mescolati a quelli nuovi.
-const VERSIONE = 'tim-bollette-v3.0';
+const VERSIONE = 'tim-bollette-v3.1';
 const BASE = ['./','index.html','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','lib/pdfjs/pdf.min.js','lib/pdfjs/pdf.worker.min.js','lib/qrcode.js','js/extra.js','js/cloud.js','js/blocco.js'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSIONE).then(c => Promise.all(BASE.map(u => fetch(new Request(u, {cache:'reload'})).then(r => r.ok ? c.put(u, r) : null).catch(() => null)))));

@@ -73,7 +73,7 @@ function ascoltaListino(){
   stopListino = Cloud.db.collection(COL.config).doc('listino').onSnapshot(s=>{
     if(!s.exists) return; const c=s.data();
     window.PIN_CENTRALE = c.pinHash || '';
-    if(c.listino){ for(const k in c.listino){ if(L[k] && typeof c.listino[k]==='object') Object.assign(L[k], c.listino[k]); else L[k]=c.listino[k]; }
+    if(c.listino){ for(const k in c.listino){ if(L[k] && typeof c.listino[k]==='object' && !Array.isArray(c.listino[k])) Object.assign(L[k], c.listino[k]); else L[k]=c.listino[k]; }
       try{ localStorage.setItem('listino', JSON.stringify(L)); }catch(e){}
       avvisoListino(); if($('#p-listino').classList.contains('on')){ renderListino(); renderLock(); }
       quizSeServe(); }
